@@ -2855,10 +2855,12 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
       // --- STATS CALCULATION ---
       const totalStudents = filteredStudents.length;
       const studentStats = filteredStudents.map(s => {
-         const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
-         const present = studentRegularRecs.filter(r => r.isPresent).length;
-         const total = studentRegularRecs.length;
-         const pct = total === 0 ? 0 : (present / total) * 100;
+         const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
+         const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
+         const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
+         const totalSessions = studentRegularRecs.length;
+         const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+         const pct = totalSessions === 0 ? 0 : ((presentCount + extraCount) / totalSessions) * 100;
          return { name: s.displayName, pct };
       });
 
@@ -2916,7 +2918,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
             });
 
-            const pct = studentTotalSessions === 0 ? 0 : Math.round((presentCount / studentTotalSessions) * 100);
+            const pct = studentTotalSessions === 0 ? 0 : Math.round(((presentCount + extraCount) / studentTotalSessions) * 100);
 
             return [
                s.studentData?.rollNo || '',
@@ -2925,7 +2927,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                ...subjectAttendance,
                extraCount.toString(),
                studentTotalSessions.toString(),
-               presentCount.toString(),
+               (presentCount + extraCount).toString(),
                `${pct}%`
             ];
          });
@@ -3149,9 +3151,10 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                         <tr className="border-b border-slate-50">
                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Roll No</th>
                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Name</th>
-                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Regular</th>
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Regular (P/T)</th>
                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Extra</th>
-                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Progress</th>
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Total</th>
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Percentage</th>
                         </tr>
                      </thead>
                         {(() => {
@@ -3184,7 +3187,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                                        const studentTotalSessions = studentRegularRecs.length;
                                        const regularAtt = studentRegularRecs.filter(r => r.isPresent).length;
                                        const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent).length;
-                                       const pct = studentTotalSessions === 0 ? 0 : Math.round((regularAtt / studentTotalSessions) * 100);
+                                       const pct = studentTotalSessions === 0 ? 0 : Math.round(((regularAtt + extraAtt) / studentTotalSessions) * 100);
 
                                        return (
                                           <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
@@ -3197,6 +3200,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                                              <td className="p-4 text-center">
                                                 <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black">+{extraAtt}</span>
                                              </td>
+                                             <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt + extraAtt}/{studentTotalSessions}</td>
                                              <td className="p-4 text-right">
                                                 <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                                    {pct}%

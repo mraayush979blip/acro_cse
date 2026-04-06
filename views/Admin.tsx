@@ -1760,8 +1760,13 @@ const ReportManagement: React.FC = () => {
     });
 
     const studentStats = filteredForExport.map(s => {
-      const stats = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
-      return { name: s.displayName, pct: stats.total === 0 ? 0 : (stats.present / stats.total) * 100 };
+      const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
+      const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
+      const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
+      const totalSessions = studentRegularRecs.length;
+      const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+      const pct = totalSessions === 0 ? 0 : ((presentCount + extraCount) / totalSessions) * 100;
+      return { name: s.displayName, pct };
     });
 
     const classAvg = filteredForExport.length === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / filteredForExport.length);
@@ -1818,7 +1823,7 @@ const ReportManagement: React.FC = () => {
           return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
         });
 
-        const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
+        const pct = totalSessions === 0 ? 0 : Math.round(((presentCount + extraCount) / totalSessions) * 100);
 
         return [
           s.studentData?.rollNo || '',
@@ -1827,7 +1832,7 @@ const ReportManagement: React.FC = () => {
           ...subjectAttendance,
           extraCount.toString(),
           totalSessions.toString(),
-          presentCount.toString(),
+          (presentCount + extraCount).toString(),
           `${pct}%`
         ];
       });
@@ -1944,22 +1949,21 @@ const ReportManagement: React.FC = () => {
     return attendance.filter(r => {
       const inStart = !start || r.date >= start;
       const inEnd = !end || r.date <= end;
-      if (!inStart || !inEnd) return false;
-      // Apply subject type filter
-      if (r.subjectId === 'sub_extra') return false;
-      if (exportSubjectType !== 'ALL') {
-        const subj = subjects.find(s => s.id === r.subjectId);
-        if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
-        if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
-      }
-      return true;
+      return inStart && inEnd;
     });
   }, [attendance, exportRange, exportStartDate, exportEndDate, exportSubjectType, subjects]);
 
   const previewStats = useMemo(() => {
-    const sessions = new Set(previewRecords.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
+    const regularRecs = previewRecords.filter(r => {
+      if (r.subjectId === 'sub_extra') return false;
+      const subj = subjects.find(s => s.id === r.subjectId);
+      if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+      if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+      return true;
+    });
+    const sessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
     return { sessions, totalRecords: previewRecords.length };
-  }, [previewRecords]);
+  }, [previewRecords, exportSubjectType, subjects]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
@@ -2095,11 +2099,12 @@ const ReportManagement: React.FC = () => {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200">
-                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Student</th>
-                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Enrollment</th>
-                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Sessions</th>
-                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Present</th>
-                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Percentage (%)</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Roll No</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Name</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Regular (P/T)</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Extra</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Total</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Percentage</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
@@ -2109,9 +2114,17 @@ const ReportManagement: React.FC = () => {
                         .filter(s => {
                           if (filterMode === 'FULL') return true;
                           const mine = previewRecords.filter(r => r.studentId === s.uid);
-                          const total = mine.length;
-                          const present = mine.filter(r => r.isPresent).length;
-                          const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                          const regularMine = mine.filter(r => {
+                            if (r.subjectId === 'sub_extra') return false;
+                            const subj = subjects.find(sub => sub.id === r.subjectId);
+                            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+                            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+                            return true;
+                          });
+                          const total = regularMine.length;
+                          const present = regularMine.filter(r => r.isPresent).length;
+                          const extraCount = mine.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+                          const pct = total === 0 ? 0 : Math.round(((present + extraCount) / total) * 100);
                           if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
                           if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
                           if (attendanceOperator === 'GT') return pct > attendanceThreshold;
@@ -2150,15 +2163,29 @@ const ReportManagement: React.FC = () => {
                         // Student rows
                         batchStudents.forEach(s => {
                           const mine = previewRecords.filter(r => r.studentId === s.uid);
-                          const total = mine.length;
-                          const present = mine.filter(r => r.isPresent).length;
-                          const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                          const regularMine = mine.filter(r => {
+                            if (r.subjectId === 'sub_extra') return false;
+                            const subj = subjects.find(sub => sub.id === r.subjectId);
+                            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+                            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+                            return true;
+                          });
+                          const total = regularMine.length;
+                          const present = regularMine.filter(r => r.isPresent).length;
+                          const extraCount = mine.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+                          const pct = total === 0 ? 0 : Math.round(((present + extraCount) / total) * 100);
                           rows.push(
                             <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
-                              <td className="p-4 font-bold text-slate-900">{s.displayName}</td>
-                              <td className="p-4 font-mono text-[10px] text-slate-500 uppercase">{s.studentData?.enrollmentId}</td>
-                              <td className="p-4 text-center text-sm font-bold text-slate-600">{total}</td>
-                              <td className="p-4 text-center text-sm font-bold text-slate-600">{present}</td>
+                              <td className="p-4 font-mono text-[10px] text-slate-400">{s.studentData?.rollNo}</td>
+                              <td className="p-4">
+                                <div className="font-bold text-slate-900 uppercase text-xs">{s.displayName}</div>
+                                <div className="text-[9px] font-mono text-slate-400 uppercase">{s.studentData?.enrollmentId}</div>
+                              </td>
+                              <td className="p-4 text-center text-sm font-bold text-slate-600">{present}/{total}</td>
+                              <td className="p-4 text-center">
+                                <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black">+{extraCount}</span>
+                              </td>
+                              <td className="p-4 text-center text-sm font-bold text-slate-600">{present + extraCount}/{total}</td>
                               <td className="p-4 text-right">
                                 <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${pct < 75 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                                   {pct}%
