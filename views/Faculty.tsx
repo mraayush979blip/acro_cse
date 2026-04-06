@@ -126,7 +126,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
 
          selectedSessions.forEach(slot => {
             students.forEach(s => {
-               if (status[s.uid]) {
+               if (status[s.uid] !== false) {
                   records.push({
                      id: `extra_${branchId}_${attendanceDate}_S${slot}_${s.uid}`,
                      date: attendanceDate, studentId: s.uid, subjectId: 'sub_extra',

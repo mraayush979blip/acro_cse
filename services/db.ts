@@ -453,7 +453,8 @@ class SupabaseService implements IDataService {
       }));
 
       for (let i = 0; i < newRecords.length; i += 500) {
-        await supabase.from('attendance').insert(newRecords.slice(i, i + 500));
+        const { error } = await supabase.from('attendance').insert(newRecords.slice(i, i + 500));
+        if (error) throw error;
       }
     } catch (err) {
       console.error("Failed to sync late student attendance:", err);
@@ -508,9 +509,10 @@ class SupabaseService implements IDataService {
     // If the RPC isn't deployed yet or fails, fallback to standard profile deletion
     if (rpcError) {
       console.warn("admin_delete_user RPC failed, falling back to profile deletion", rpcError);
-      await supabase.from('assignments').delete().eq('faculty_id', uid);
-      const { error } = await supabase.from('profiles').delete().eq('id', uid);
-      if (error) throw error;
+      const { error: assignError } = await supabase.from('assignments').delete().eq('faculty_id', uid);
+      if (assignError) throw assignError;
+      const { error: profError } = await supabase.from('profiles').delete().eq('id', uid);
+      if (profError) throw profError;
     }
     
     this._invalidate('students_*');
@@ -529,7 +531,8 @@ class SupabaseService implements IDataService {
     if (!data.email) throw new Error("Email required");
     const pass = password || "password123";
 
-    await supabase.from('whitelist').upsert([{ email: data.email, role: UserRole.FACULTY }]);
+    const { error: wlError } = await supabase.from('whitelist').upsert([{ email: data.email, role: UserRole.FACULTY }]);
+    if (wlError) throw wlError;
     const { data: authData, error } = await authClient.auth.signUp({
       email: data.email,
       password: pass,
@@ -850,16 +853,19 @@ class SupabaseService implements IDataService {
       lecture_slot: r.lectureSlot,
       reason: r.reason
     }));
-    await supabase.from('attendance').upsert(rows);
+    const { error } = await supabase.from('attendance').upsert(rows);
+    if (error) throw error;
   }
 
   async deleteAttendanceRecords(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
-    await supabase.from('attendance').delete().in('id', ids);
+    const { error } = await supabase.from('attendance').delete().in('id', ids);
+    if (error) throw error;
   }
 
   async deleteAttendanceForOverwrite(date: string, branchId: string, slot: number): Promise<void> {
-    await supabase.from('attendance').delete().eq('date', date).eq('branch_id', branchId).eq('lecture_slot', slot);
+    const { error } = await supabase.from('attendance').delete().eq('date', date).eq('branch_id', branchId).eq('lecture_slot', slot);
+    if (error) throw error;
   }
 
   // --- Notifications ---
@@ -897,7 +903,8 @@ class SupabaseService implements IDataService {
   }
 
   async deleteNotification(id: string): Promise<void> {
-    await supabase.from('notifications').delete().eq('id', id);
+    const { error } = await supabase.from('notifications').delete().eq('id', id);
+    if (error) throw error;
   }
 
   async deleteAllNotifications(userId: string): Promise<void> {
@@ -980,7 +987,8 @@ class SupabaseService implements IDataService {
       max_marks: m.maxMarks,
       updated_at: new Date().toISOString()
     }));
-    await supabase.from('marks').upsert(rows, { onConflict: 'student_id,subject_id,mid_sem_type' });
+    const { error } = await supabase.from('marks').upsert(rows, { onConflict: 'student_id,subject_id,mid_sem_type' });
+    if (error) throw error;
   }
 
   async getSystemSettings(): Promise<SystemSettings> {
@@ -994,7 +1002,8 @@ class SupabaseService implements IDataService {
   }
 
   async updateSystemSettings(settings: SystemSettings): Promise<void> {
-    await supabase.from('system_settings').upsert({ key: 'student_login_enabled', value: settings.studentLoginEnabled });
+    const { error } = await supabase.from('system_settings').upsert({ key: 'student_login_enabled', value: settings.studentLoginEnabled });
+    if (error) throw error;
   }
 
   async getUsersCount(): Promise<number> {
@@ -1020,12 +1029,22 @@ class SupabaseService implements IDataService {
 
   async seedDatabase(): Promise<void> {
     const { data: b } = await supabase.from('branches').select('id').limit(1);
-    if (!b || b.length === 0) await supabase.from('branches').insert(SEED_BRANCHES);
+    if (!b || b.length === 0) {
+      const { error } = await supabase.from('branches').insert(SEED_BRANCHES);
+      if (error) throw error;
+    }
     const { data: bt } = await supabase.from('batches').select('id').limit(1);
-    if (!bt || bt.length === 0) await supabase.from('batches').insert(SEED_BATCHES);
+    if (!bt || bt.length === 0) {
+      const { error } = await supabase.from('batches').insert(SEED_BATCHES);
+      if (error) throw error;
+    }
     const { data: s } = await supabase.from('subjects').select('id').limit(1);
-    if (!s || s.length === 0) await supabase.from('subjects').insert(SEED_SUBJECTS);
-    await supabase.from('system_settings').upsert([{ key: 'student_login_enabled', value: true }]);
+    if (!s || s.length === 0) {
+      const { error } = await supabase.from('subjects').insert(SEED_SUBJECTS);
+      if (error) throw error;
+    }
+    const { error: ssError } = await supabase.from('system_settings').upsert([{ key: 'student_login_enabled', value: true }]);
+    if (ssError) throw ssError;
   }
 
   async getRawProfile(userId: string): Promise<any> {
