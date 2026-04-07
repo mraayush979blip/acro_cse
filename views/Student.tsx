@@ -52,7 +52,7 @@ export const StudentDashboard: React.FC<StudentProps> = ({ user }) => {
       <div className="space-y-6">
          <div className="bg-indigo-900 text-white p-6 rounded-xl shadow-lg">
             <h2 className="text-2xl font-bold">Hello, {user.displayName}</h2>
-            <p className="opacity-80 font-mono text-sm">Enrollment: {user.studentData?.enrollmentId}</p>
+            <p className="mt-2 text-sm"><span className="bg-slate-100 text-slate-900 tracking-tighter px-2 py-1 rounded font-mono font-bold">Enrollment: {user.studentData?.enrollmentId}</span></p>
          </div>
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {extraLectures > 0 && (

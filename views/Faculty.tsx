@@ -317,8 +317,8 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                                  }`}
                            >
                               <div className="font-black uppercase tracking-tight text-sm mb-0.5">{s.displayName}</div>
-                              <div className={`text-[10px] font-mono opacity-60 ${viewSearchStudent?.uid === s.uid ? 'text-white' : 'text-slate-500'}`}>
-                                 {s.studentData?.enrollmentId}
+                              <div className={`text-[10px] font-mono opacity-60 ${viewSearchStudent?.uid === s.uid ? 'text-white' : 'text-slate-900'}`}>
+                                 Sr No: {s.studentData?.enrollmentId}
                               </div>
                            </button>
                         ))}
@@ -560,7 +560,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
 
                            <div className="relative flex items-center justify-between gap-4">
                               <div className="flex items-center gap-4 min-w-0">
-                                 {/* Roll No badge */}
+                                 {/* Sr No badge */}
                                  <div className={`w-12 h-12 flex flex-col items-center justify-center rounded-2xl font-black transition-all ${status[s.uid] === false
                                     ? 'bg-rose-100 text-rose-600 rotate-[-4deg]'
                                     : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'
@@ -575,7 +575,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                                        {s.displayName}
                                     </h4>
                                     <div className="flex items-center gap-2">
-                                       <span className="text-[10px] font-mono text-slate-400 tracking-tighter">{s.studentData?.enrollmentId}</span>
+                                       <span className="text-[10px] font-mono text-slate-900 tracking-tighter">{s.studentData?.enrollmentId}</span>
                                        <div className={`w-1.5 h-1.5 rounded-full ${status[s.uid] === false ? 'bg-rose-400' : 'bg-emerald-400 animate-pulse'}`} />
                                     </div>
                                  </div>
@@ -927,7 +927,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
                // Deduplicate
                const unique = Array.from(new Map(data.map(s => [s.uid, s])).values());
-               // Sort numerically by Roll No
+               // Sort numerically by Sr No
                setAllBranchStudents(unique.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })));
 
                // Load Attendance
@@ -1368,7 +1368,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       ];
 
       // --- 3. Data Assembly ---
-      const dataHeaders = ['Roll No', 'Name', 'Enrollment', 'Total', 'Present', 'Percentage (%)'];
+      const dataHeaders = ['Sr No', 'Name', 'Enrollment', 'Total', 'Present', 'Percentage (%)'];
       if (isDetailed) {
          dataHeaders.push(...sortedSlots.map(s => `${s.date} (L${s.slot})`));
       }
@@ -1478,14 +1478,14 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
             }
 
             // Table Header
-            if (rowVal0 === 'Roll No') {
+            if (rowVal0 === 'Sr No') {
                ws[addr].s.fill = { fgColor: { rgb: "1E293B" } };
                ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
                ws[addr].s.alignment.horizontal = "center";
             }
 
             // Attendance % Column Colors (Col 5)
-            if (rowVal0 && rowVal0 !== 'Roll No' && !rowVal0.startsWith('>>> BATCH') && R > 10 && C === 5) {
+            if (rowVal0 && rowVal0 !== 'Sr No' && !rowVal0.startsWith('>>> BATCH') && R > 10 && C === 5) {
                const valText = ws[addr].v?.toString() || '';
                const val = parseInt(valText);
                if (!isNaN(val)) {
@@ -1583,9 +1583,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                   <div>
                      <h3 className="text-lg font-black text-slate-900 tracking-tight leading-none mb-1.5">{viewHistoryStudent.displayName}</h3>
                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold py-0.5 px-2 bg-slate-100 text-slate-500 rounded-lg">{viewHistoryStudent.studentData?.enrollmentId}</span>
+                        <span className="text-[10px] font-bold py-0.5 px-2 bg-slate-100 text-slate-900 rounded-lg">{viewHistoryStudent.studentData?.enrollmentId}</span>
                         <div className="h-1 w-1 bg-slate-300 rounded-full"></div>
-                        <span className="text-[10px] font-bold text-slate-400 italic">Roll: {viewHistoryStudent.studentData?.rollNo || '-'}</span>
+                        <span className="text-[10px] font-bold text-slate-400 italic">Sr No: {viewHistoryStudent.studentData?.rollNo || '-'}</span>
                      </div>
                   </div>
                </div>
@@ -1856,9 +1856,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                     <div className="flex-1 min-w-0 mr-4">
                                        <div className="flex items-center gap-2 mb-1.5">
                                           <span className={`inline-flex items-center justify-center text-[10px] font-black px-2 py-0.5 rounded-lg tracking-tight ${isPresent ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                             ROLL NO: {s.studentData?.rollNo || '#'}
+                                             SR NO: {s.studentData?.rollNo || '#'}
                                           </span>
-                                          <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter opacity-60 truncate">{s.studentData?.enrollmentId}</span>
+                                          <span className="text-[10px] font-bold text-slate-900 font-mono tracking-tighter opacity-100 truncate">{s.studentData?.enrollmentId}</span>
                                        </div>
                                        <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1">{s.displayName}</h4>
                                        <div className="flex items-center gap-1.5">
@@ -1919,7 +1919,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                        <td className="py-3 px-4 text-slate-900 font-mono text-sm">{s.studentData?.rollNo || '-'}</td>
                                        <td className="py-3 px-4">
                                           <div className="font-semibold text-slate-900 text-sm">{s.displayName}</div>
-                                          <div className="text-xs text-slate-500 font-mono">{s.studentData?.enrollmentId}</div>
+                                          <div className="text-xs text-slate-900 font-mono">{s.studentData?.enrollmentId}</div>
                                        </td>
                                        <td className="py-3 px-4 text-center">
                                           <div className="flex justify-center">
@@ -2137,7 +2137,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                           <div className="flex items-center gap-2 mb-1">
                                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter opacity-70">#{s.studentData?.rollNo}</span>
                                              <div className="h-1 w-1 bg-slate-200 rounded-full"></div>
-                                             <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter opacity-60 truncate">{s.studentData?.enrollmentId}</span>
+                                             <span className="text-[10px] font-bold text-slate-900 font-mono tracking-tighter opacity-100 truncate">{s.studentData?.enrollmentId}</span>
                                           </div>
                                           <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none">{s.displayName}</h4>
                                        </div>
@@ -2160,7 +2160,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                           <div className="flex items-center gap-2 mb-1">
                                              <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter opacity-70">#{s.studentData?.rollNo}</span>
                                              <div className="h-1 w-1 bg-slate-200 rounded-full"></div>
-                                             <span className="text-[10px] font-bold text-slate-400 font-mono tracking-tighter opacity-60 truncate">{s.studentData?.enrollmentId}</span>
+                                             <span className="text-[10px] font-bold text-slate-900 font-mono tracking-tighter opacity-100 truncate">{s.studentData?.enrollmentId}</span>
                                           </div>
                                           <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1.5 group-hover:text-indigo-600 transition-colors uppercase">{s.displayName}</h4>
                                           <div className="flex items-center gap-4">
@@ -2348,7 +2348,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                     <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
                                        <td className="py-4 px-6">
                                           <div className="font-bold text-slate-800 text-sm uppercase tracking-tight">{s.displayName}</div>
-                                          <div className="text-[10px] font-bold text-slate-400 font-mono">{s.studentData?.enrollmentId} | Roll: {s.studentData?.rollNo || '#'}</div>
+                                          <div className="text-[10px] font-bold text-slate-900 font-mono">{s.studentData?.enrollmentId} | Sr No: {s.studentData?.rollNo || '#'}</div>
                                        </td>
                                        <td className="py-4 px-6 text-right">
                                           <div className="flex items-center justify-end gap-2">
@@ -3149,7 +3149,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                   <table className="w-full text-left">
                      <thead>
                         <tr className="border-b border-slate-50">
-                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Roll No</th>
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Sr No</th>
                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Name</th>
                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Regular (P/T)</th>
                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Extra</th>
@@ -3194,7 +3194,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                                              <td className="p-4 font-mono text-[10px] text-slate-400">{s.studentData?.rollNo}</td>
                                              <td className="p-4">
                                                 <div className="font-black text-slate-800 uppercase tracking-tight text-xs">{s.displayName}</div>
-                                                <div className="text-[9px] font-mono text-slate-400">{s.studentData?.enrollmentId}</div>
+                                                <div className="text-[9px] font-mono text-slate-900">{s.studentData?.enrollmentId}</div>
                                              </td>
                                              <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt}/{studentTotalSessions}</td>
                                              <td className="p-4 text-center">

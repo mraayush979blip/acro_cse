@@ -232,7 +232,7 @@ const AdminStudentDetail: React.FC<{ student: User; onBack: () => void }> = ({ s
           <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full text-slate-600 transition"><ArrowLeft className="h-5 w-5" /></button>
           <div>
             <h3 className="text-xl font-bold text-slate-900">{student.displayName}</h3>
-            <p className="text-sm text-slate-500 font-mono">{student.studentData?.enrollmentId} {student.studentData?.rollNo ? `| S.No: ${student.studentData.rollNo}` : ''}</p>
+            <p className="text-sm text-slate-900 font-mono">{student.studentData?.enrollmentId} {student.studentData?.rollNo ? `| S.No: ${student.studentData.rollNo}` : ''}</p>
           </div>
         </div>
       </div>
@@ -608,7 +608,7 @@ const StudentManagement: React.FC = () => {
           setImportProgress(null);
         }
       } else {
-        alert("No valid student data found in CSV. Expected columns: Enrollment, Serial No, Name, Mobile");
+        alert("No valid student data found in CSV. Expected columns: Enrollment, Sr No, Name, Mobile");
       }
       setLoading(false);
     };
@@ -831,10 +831,10 @@ const StudentManagement: React.FC = () => {
               <Input label="Name" required value={newStudent.name} onChange={e => setNewStudent({ ...newStudent, name: e.target.value })} className="mb-0 text-slate-900 bg-white" />
               <Input label="Mobile No" required value={newStudent.mobile} onChange={e => setNewStudent({ ...newStudent, mobile: e.target.value })} className="mb-0 text-slate-900 bg-white" placeholder="Used as password" />
               <Input label="Enrollment" required value={newStudent.enroll} onChange={e => setNewStudent({ ...newStudent, enroll: e.target.value })} className="mb-0 text-slate-900 bg-white" />
-              <Input label="Serial No" value={newStudent.rollNo} onChange={e => setNewStudent({ ...newStudent, rollNo: e.target.value })} className="mb-0 text-slate-900 bg-white" />
+              <Input label="Sr No" value={newStudent.rollNo} onChange={e => setNewStudent({ ...newStudent, rollNo: e.target.value })} className="mb-0 text-slate-900 bg-white" />
             </form>
             <div className="flex justify-end gap-2">
-              <a href="data:text/csv;charset=utf-8,Enrollment,Serial No,Name,Mobile%0A0827CS221234,1,John Doe,9876543210" download="students_template.csv" className="flex items-center gap-1 px-3 py-2 rounded border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-slate-100 transition-all">📄 Template</a>
+              <a href="data:text/csv;charset=utf-8,Enrollment,Sr No,Name,Mobile%0A0827CS221234,1,John Doe,9876543210" download="students_template.csv" className="flex items-center gap-1 px-3 py-2 rounded border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-slate-100 transition-all">📄 Template</a>
               <FileUploader onFileSelect={handleCSVUpload} label="Import CSV" />
               <Button onClick={handleAddStudent} disabled={loading}>{loading ? 'Adding...' : 'Add Student'}</Button>
             </div>
@@ -859,7 +859,7 @@ const StudentManagement: React.FC = () => {
               <div key={s.uid} className="flex items-center justify-between py-3 px-1 gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="font-bold text-slate-900 text-sm truncate">{s.displayName}</div>
-                  <div className="text-[10px] font-mono text-slate-500 uppercase">{s.studentData?.enrollmentId} {s.studentData?.rollNo ? `· ${s.studentData.rollNo}` : ''}</div>
+                  <div className="text-[10px] font-mono text-slate-900 uppercase">{s.studentData?.enrollmentId} {s.studentData?.rollNo ? `· ${s.studentData.rollNo}` : ''}</div>
                   <div className="text-[10px] text-slate-400 font-mono">{s.studentData?.mobileNo}</div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
@@ -872,7 +872,7 @@ const StudentManagement: React.FC = () => {
           </div>
           {/* Desktop table */}
           <table className="hidden md:table w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Enrollment</th><th className="p-2 text-slate-900">Serial No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Mobile No</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead>
+            <thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Enrollment</th><th className="p-2 text-slate-900">Sr No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Mobile No</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead>
             <tbody>{students.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => (<tr key={s.uid} className="border-b group"><td className="p-2 font-mono text-slate-900">{s.studentData?.enrollmentId}</td><td className="p-2 font-mono text-slate-900">{s.studentData?.rollNo}</td><td className="p-2 text-slate-900">{s.displayName}</td><td className="p-2 text-slate-900 font-mono">{s.studentData?.mobileNo}</td><td className="p-2 text-right"><button onClick={() => handleSelectStudent(s)} className="text-indigo-500 mr-2 opacity-0 group-hover:opacity-100" title="View Details"><Eye className="h-4 w-4" /></button><button onClick={() => startEditStudent(s)} className="text-blue-500 mr-2 opacity-0 group-hover:opacity-100" title="Edit Student"><Edit2 className="h-4 w-4" /></button><button onClick={() => handleDelete(s.uid)} className="text-red-500 opacity-0 group-hover:opacity-100" title="Delete Student"><Trash2 className="h-4 w-4" /></button></td></tr>))}</tbody>
           </table>
 
@@ -882,7 +882,7 @@ const StudentManagement: React.FC = () => {
               <Input label="Name" required value={editStudentForm.name} onChange={e => setEditStudentForm({ ...editStudentForm, name: e.target.value })} />
               <Input label="Mobile No" required value={editStudentForm.mobile} onChange={e => setEditStudentForm({ ...editStudentForm, mobile: e.target.value })} />
               <Input label="Enrollment" required value={editStudentForm.enroll} onChange={e => setEditStudentForm({ ...editStudentForm, enroll: e.target.value })} />
-              <Input label="Serial No" value={editStudentForm.rollNo} onChange={e => setEditStudentForm({ ...editStudentForm, rollNo: e.target.value })} />
+              <Input label="Sr No" value={editStudentForm.rollNo} onChange={e => setEditStudentForm({ ...editStudentForm, rollNo: e.target.value })} />
               <div className="flex justify-end gap-2 pt-4">
                 <Button variant="secondary" onClick={() => setIsEditingStudent(false)}>Cancel</Button>
                 <Button type="submit" disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>
@@ -1444,7 +1444,7 @@ const FacultyManagement: React.FC = () => {
       {/* Edit Faculty Modal */}
       <Modal isOpen={isEditingFaculty} onClose={() => setIsEditingFaculty(false)} title="Edit Faculty">
         <form onSubmit={handleEditFaculty} className="space-y-4 p-4">
-          <Input label="Serial No" value={editFacForm.serialNo} onChange={e => setEditFacForm({ ...editFacForm, serialNo: e.target.value })} className="text-slate-900 bg-white" placeholder="S.No" />
+          <Input label="Sr No" value={editFacForm.serialNo} onChange={e => setEditFacForm({ ...editFacForm, serialNo: e.target.value })} className="text-slate-900 bg-white" placeholder="S.No" />
           <Input label="Name" required value={editFacForm.name} onChange={e => setEditFacForm({ ...editFacForm, name: e.target.value })} className="text-slate-900 bg-white" />
           <Input label="Email" required value={editFacForm.email} onChange={e => setEditFacForm({ ...editFacForm, email: e.target.value })} className="text-slate-900 bg-white" />
           <div className="flex justify-end gap-2 pt-4">
@@ -1594,7 +1594,7 @@ function AttendanceMonitor() {
                   <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="p-4">
                       <div className="font-bold text-slate-900">{s.displayName}</div>
-                      <div className="text-[10px] text-slate-500 font-mono tracking-tighter uppercase">{s.studentData?.enrollmentId} | S.No: {s.studentData?.rollNo}</div>
+                      <div className="text-[10px] text-slate-900 font-mono tracking-tighter uppercase">{s.studentData?.enrollmentId} | S.No: {s.studentData?.rollNo}</div>
                     </td>
                     <td className="p-4 hidden md:table-cell">
                       <span className="px-2 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded uppercase">
@@ -1780,7 +1780,7 @@ const ReportManagement: React.FC = () => {
       ["", ""]
     ];
 
-    const headerLabels = ["Serial No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Present Count", "Attendance %"];
+    const headerLabels = ["Sr No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Present Count", "Attendance %"];
     let excelRows: any[][] = [...headerRows, ...statsInfo];
 
     // Group students by Batch
@@ -1902,7 +1902,7 @@ const ReportManagement: React.FC = () => {
         }
 
         // Table Header
-        if (rowVal0 === 'Serial No') {
+        if (rowVal0 === 'Sr No') {
           ws[addr].s.fill = { fgColor: { rgb: "334155" } };
           ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
           ws[addr].s.alignment.horizontal = "center";
@@ -2099,7 +2099,7 @@ const ReportManagement: React.FC = () => {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200">
-                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Roll No</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Sr No</th>
                       <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Name</th>
                       <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Regular (P/T)</th>
                       <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Extra</th>
@@ -2179,7 +2179,7 @@ const ReportManagement: React.FC = () => {
                               <td className="p-4 font-mono text-[10px] text-slate-400">{s.studentData?.rollNo}</td>
                               <td className="p-4">
                                 <div className="font-bold text-slate-900 uppercase text-xs">{s.displayName}</div>
-                                <div className="text-[9px] font-mono text-slate-400 uppercase">{s.studentData?.enrollmentId}</div>
+                                <div className="text-[9px] font-mono text-slate-900 uppercase">{s.studentData?.enrollmentId}</div>
                               </td>
                               <td className="p-4 text-center text-sm font-bold text-slate-600">{present}/{total}</td>
                               <td className="p-4 text-center">

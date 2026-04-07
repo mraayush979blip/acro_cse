@@ -333,7 +333,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs font-medium uppercase tracking-tighter">
                       <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">{displayRole}</span>
-                      {user.studentData?.enrollmentId && <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">{user.studentData.enrollmentId}</span>}
+                      {user.studentData?.enrollmentId && <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-900 font-mono font-bold">{user.studentData.enrollmentId}</span>}
                     </div>
                   </div>
 
