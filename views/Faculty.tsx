@@ -32,6 +32,13 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; disabled?
 );
 
 const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData: any }> = ({ branchId, facultyUser, metaData }) => {
+   /*
+    * Coordinator extra-lecture marking UX notes:
+    * 1) At least one lecture slot must be selected before attendance can be saved.
+    * 2) Save opens an explicit confirmation modal with date/slot context and retry-safe errors.
+    * 3) Selected slot chips are visually emphasized and expose pressed state for accessibility.
+    * 4) A helper banner appears when no slot is selected, guiding the user to pick one.
+    */
    const [students, setStudents] = useState<User[]>([]);
    const [loading, setLoading] = useState(true);
    const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
@@ -42,6 +49,8 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    const [history, setHistory] = useState<AttendanceRecord[]>([]);
    const [activeTab, setActiveTab] = useState<'MARK' | 'HISTORY' | 'MONITOR' | 'REPORTS' | 'SEARCH'>('MARK');
    const [extraReason, setExtraReason] = useState('');
+   const [confirmOpen, setConfirmOpen] = useState(false);
+   const [networkError, setNetworkError] = useState('');
 
    // Search State
    const [searchQuery, setSearchQuery] = useState('');
@@ -108,8 +117,8 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    };
 
    const handleSave = async () => {
-      if (selectedSessions.length === 0) { alert("Please select at least one session."); return; }
-      if (!window.confirm("Are you sure you want to save this attendance?")) return;
+      if (selectedSessions.length === 0) return;
+      setNetworkError('');
       setIsSaving(true);
       try {
          const records: AttendanceRecord[] = [];
@@ -145,7 +154,11 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
          setSaveMessage("Saved!");
          setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra'));
          setTimeout(() => setSaveMessage(''), 3000);
-      } catch (e: any) { alert(e.message); } finally { setIsSaving(false); }
+         setConfirmOpen(false);
+      } catch (e: any) {
+         const message = e?.message ? `Failed to save attendance: ${e.message}` : 'Network/server error while saving attendance. Please retry.';
+         setNetworkError(message);
+      } finally { setIsSaving(false); }
    };
 
    useEffect(() => {
@@ -467,15 +480,30 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                         <div className="p-2 bg-indigo-50 rounded-xl">
                            <RefreshCw className="h-4 w-4 text-indigo-600" />
                         </div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Slots (Max 7)</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                           <span>Active Slots (Max 7)</span>
+                           <span
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600 cursor-help"
+                              title="Select one or more lecture slots before saving attendance."
+                              aria-label="Slot selection help"
+                           >
+                              ℹ️
+                           </span>
+                        </label>
                      </div>
+                     {selectedSessions.length === 0 && (
+                        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                           Please select a lecture slot before saving attendance.
+                        </div>
+                     )}
                      <div className="flex flex-wrap gap-2.5">
                         {[1, 2, 3, 4, 5, 6, 7].map(num => (
                            <button
                               key={num}
                               onClick={() => toggleSession(num)}
+                              aria-pressed={selectedSessions.includes(num)}
                               className={`w-11 h-11 rounded-2xl font-black text-sm transition-all duration-300 flex items-center justify-center ${selectedSessions.includes(num)
-                                 ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105'
+                                 ? 'bg-indigo-600 text-white shadow-2xl shadow-indigo-300/70 scale-105 animate-pulse'
                                  : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
                                  }`}
                            >
@@ -624,7 +652,10 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                            </span>
                         )}
                         <Button
-                           onClick={handleSave}
+                           onClick={() => {
+                              if (selectedSessions.length === 0) return;
+                              setConfirmOpen(true);
+                           }}
                            disabled={isSaving || selectedSessions.length === 0}
                            className="w-full md:w-[280px] h-14 bg-indigo-600 text-white !rounded-3xl font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:grayscale disabled:opacity-50"
                         >
@@ -742,6 +773,37 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
 
          {activeTab === 'MONITOR' && <CoordinatorMarkingMonitor branchId={branchId} metaData={metaData} />}
          {activeTab === 'REPORTS' && <CoordinatorReport branchId={branchId} branchName={metaData.branches[branchId] || branchId} students={students} metaData={metaData} />}
+         <Modal
+            isOpen={confirmOpen}
+            onClose={() => { if (!isSaving) setConfirmOpen(false); }}
+            title="Confirm Attendance Save"
+         >
+            <div className="space-y-4">
+               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                  <div className="flex justify-between gap-4">
+                     <span className="text-slate-500">Date</span>
+                     <span className="font-semibold text-slate-900">{attendanceDate}</span>
+                  </div>
+                  <div className="mt-2 flex justify-between gap-4">
+                     <span className="text-slate-500">Selected Slots</span>
+                     <span className="font-semibold text-slate-900">
+                        {selectedSessions.length > 0 ? `L${selectedSessions.join(', L')}` : 'None'}
+                     </span>
+                  </div>
+               </div>
+               {networkError && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                     {networkError}
+                  </div>
+               )}
+               <div className="flex justify-end gap-3 pt-1">
+                  <Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={isSaving}>Cancel</Button>
+                  <Button onClick={handleSave} disabled={isSaving || selectedSessions.length === 0}>
+                     {isSaving ? 'Saving...' : 'Confirm'}
+                  </Button>
+               </div>
+            </div>
+         </Modal>
       </div >
    );
 };
@@ -749,6 +811,13 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
 
 
 export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinatorView = false }) => {
+   /*
+    * MARK tab UX behavior:
+    * - Slot selection is mandatory before save is allowed.
+    * - Save always routes through an explicit confirmation modal.
+    * - Selected slot buttons are strongly highlighted and accessible (aria-pressed).
+    * - Network/server failures are surfaced inside the confirmation modal for retry.
+    */
    const navigate = useNavigate();
    const location = useLocation();
    const params = useParams();
@@ -826,13 +895,14 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    // Marking State
    const [allBranchStudents, setAllBranchStudents] = useState<User[]>([]); // Cache all students in branch
    const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
-   const [selectedSlots, setSelectedSlots] = useState<number[]>([1]);
+   const [selectedSlots, setSelectedSlots] = useState<number[]>([]);
    const [attendanceStatus, setAttendanceStatus] = useState<Record<string, boolean>>({});
    const [saveMessage, setSaveMessage] = useState('');
    const [allClassRecords, setAllClassRecords] = useState<AttendanceRecord[]>([]);
    const [isSaving, setIsSaving] = useState(false);
    const [isEditMode, setIsEditMode] = useState(false);
    const [showConfirmModal, setShowConfirmModal] = useState(false);
+   const [networkError, setNetworkError] = useState('');
 
    // Marks State
    const [marksData, setMarksData] = useState<Record<string, number>>({});
@@ -1103,10 +1173,11 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    };
 
    const handleSaveClick = async () => {
-      if (selectedSlots.length === 0) { alert("Please select at least one lecture slot."); return; }
+      if (selectedSlots.length === 0) return;
       if (visibleStudents.length === 0) { alert("No students selected."); return; }
 
       setIsSaving(true);
+      setNetworkError('');
       setConflictDetails(null);
       setIdsToDelete([]);
 
@@ -1159,7 +1230,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          setShowConfirmModal(true);
       } catch (e: any) {
          console.error(e);
-         alert("Error verifying records: " + e.message);
+         setNetworkError(`Error verifying records: ${e.message || 'Please retry.'}`);
+         setShowConfirmModal(true);
       } finally {
          setIsSaving(false);
       }
@@ -1236,6 +1308,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const executeSave = async () => {
       setIsSaving(true);
       setSaveMessage('');
+      setNetworkError('');
 
       const records = generateRecords();
 
@@ -1267,9 +1340,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          setShowConfirmModal(false);
       } catch (e: any) {
          if (e.code === 'permission-denied') {
-            alert("PERMISSION DENIED: You cannot overwrite existing attendance. Please update Firestore Rules to 'allow write' for the attendance collection.");
+            setNetworkError("PERMISSION DENIED: You cannot overwrite existing attendance. Please update Firestore Rules to allow write for the attendance collection.");
          } else {
-            alert("Error saving: " + e.message);
+            setNetworkError(`Error saving: ${e.message || 'Please retry.'}`);
          }
       } finally {
          setIsSaving(false);
@@ -1374,7 +1447,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       }
 
       let excelRows: any[][] = [...headerRows, ...statsInfo];
-      
+
       const batchesMap = new Map<string, User[]>();
       sortedStudents.forEach(s => {
          const bId = s.studentData?.batchId || 'UNASSIGNED';
@@ -1763,52 +1836,69 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            </div>
 
                            {metaData.subjects[selSubjectId]?.type === 'lab' && (
-                           <div className="space-y-1 relative">
-                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Batches</label>
-                              <button
-                                 onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
-                                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 flex justify-between items-center transition-all active:scale-[0.98]"
-                              >
-                                 <span className="truncate">{selectedMarkingBatches.length > 0 ? `${selectedMarkingBatches.length} Sel` : 'Select'}</span>
-                                 <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-                              </button>
+                              <div className="space-y-1 relative">
+                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Batches</label>
+                                 <button
+                                    onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 flex justify-between items-center transition-all active:scale-[0.98]"
+                                 >
+                                    <span className="truncate">{selectedMarkingBatches.length > 0 ? `${selectedMarkingBatches.length} Sel` : 'Select'}</span>
+                                    <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                                 </button>
 
-                              {isBatchDropdownOpen && (
-                                 <div className="fixed inset-x-4 top-[35%] bg-white border border-slate-200 shadow-2xl rounded-2xl z-[60] p-4 animate-in zoom-in-95 duration-200 max-h-[50vh] overflow-y-auto">
-                                    <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-                                       <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Select Batches</h3>
-                                       <button onClick={() => setIsBatchDropdownOpen(false)} className="p-1 hover:bg-slate-100 rounded-full"><X className="h-4 w-4" /></button>
+                                 {isBatchDropdownOpen && (
+                                    <div className="fixed inset-x-4 top-[35%] bg-white border border-slate-200 shadow-2xl rounded-2xl z-[60] p-4 animate-in zoom-in-95 duration-200 max-h-[50vh] overflow-y-auto">
+                                       <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+                                          <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Select Batches</h3>
+                                          <button onClick={() => setIsBatchDropdownOpen(false)} className="p-1 hover:bg-slate-100 rounded-full"><X className="h-4 w-4" /></button>
+                                       </div>
+                                       <div className="grid grid-cols-1 gap-2">
+                                          {sameSubjectBatches.map(b => {
+                                             const isSelected = selectedMarkingBatches.includes(b.id);
+                                             return (
+                                                <div
+                                                   key={b.id}
+                                                   onClick={() => toggleBatchSelection(b.id)}
+                                                   className={`px-4 py-3 rounded-xl cursor-pointer flex items-center justify-between transition-all ${isSelected ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-slate-50 border-transparent text-slate-600'}`}
+                                                >
+                                                   <span className="text-xs font-bold">{b.name}</span>
+                                                   {isSelected && <Check className="h-4 w-4" />}
+                                                </div>
+                                             );
+                                          })}
+                                       </div>
                                     </div>
-                                    <div className="grid grid-cols-1 gap-2">
-                                       {sameSubjectBatches.map(b => {
-                                          const isSelected = selectedMarkingBatches.includes(b.id);
-                                          return (
-                                             <div
-                                                key={b.id}
-                                                onClick={() => toggleBatchSelection(b.id)}
-                                                className={`px-4 py-3 rounded-xl cursor-pointer flex items-center justify-between transition-all ${isSelected ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-slate-50 border-transparent text-slate-600'}`}
-                                             >
-                                                <span className="text-xs font-bold">{b.name}</span>
-                                                {isSelected && <Check className="h-4 w-4" />}
-                                             </div>
-                                          );
-                                       })}
-                                    </div>
-                                 </div>
-                              )}
-                              {isBatchDropdownOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50" onClick={() => setIsBatchDropdownOpen(false)}></div>}
-                           </div>
+                                 )}
+                                 {isBatchDropdownOpen && <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50" onClick={() => setIsBatchDropdownOpen(false)}></div>}
+                              </div>
                            )}
                         </div>
 
                         <div className="space-y-2">
-                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Lecture Slots</label>
+                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              <span className="inline-flex items-center gap-1.5">
+                                 <span>Lecture Slots</span>
+                                 <span
+                                    className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600 cursor-help"
+                                    title="Select at least one slot before saving attendance."
+                                    aria-label="Slot selection info"
+                                 >
+                                    ℹ️
+                                 </span>
+                              </span>
+                           </label>
+                           {selectedSlots.length === 0 && (
+                              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                                 Please select a lecture slot before saving attendance.
+                              </div>
+                           )}
                            <div className="flex gap-2 scrollbar-none overflow-x-auto pb-1">
                               {[1, 2, 3, 4, 5, 6, 7].map(slot => (
                                  <button
                                     key={slot}
                                     onClick={() => toggleSlot(slot)}
-                                    className={`flex-shrink-0 w-10 h-10 rounded-xl text-xs font-black transition-all border-2 ${selectedSlots.includes(slot) ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-white border-slate-100 text-slate-400'}`}
+                                    aria-pressed={selectedSlots.includes(slot)}
+                                    className={`flex-shrink-0 w-10 h-10 rounded-xl text-xs font-black transition-all border-2 ${selectedSlots.includes(slot) ? 'bg-indigo-600 border-indigo-600 text-white shadow-2xl shadow-indigo-300/70 animate-pulse' : 'bg-white border-slate-100 text-slate-400'}`}
                                  >
                                     {slot}
                                  </button>
@@ -1959,7 +2049,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                         )}
                         <button
                            onClick={handleSaveClick}
-                           disabled={isSaving}
+                           disabled={isSaving || selectedSlots.length === 0}
                            className={`h-14 px-10 w-full md:w-auto rounded-3xl font-black text-xs uppercase tracking-[0.1em] shadow-2xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 ${isEditMode ? 'bg-orange-600 text-white shadow-orange-200' : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700'}`}
                         >
                            {isSaving ? (
@@ -2205,97 +2295,97 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                        {(() => {
-                           const filtered = visibleStudents.filter(s => {
-                              if (historyFilterDate) return true;
-                              const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
-                              const filteredRecs = myRecs.filter(r => {
-                                 const inStart = !historyStartDate || r.date >= historyStartDate;
-                                 const inEnd = !historyTillDate || r.date <= historyTillDate;
-                                 return inStart && inEnd;
-                              });
-                              if (attendanceFilter === 'CUSTOM') {
-                                 const total = filteredRecs.length;
-                                 const present = filteredRecs.filter(r => r.isPresent).length;
-                                 const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-                                 if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
-                                 if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
-                                 if (attendanceOperator === 'GT') return pct > attendanceThreshold;
-                                 if (attendanceOperator === 'LT') return pct < attendanceThreshold;
-                              }
-                              return true;
-                           });
-                           const batchGroupMap = new Map<string, typeof filtered>();
-                           filtered.forEach(s => {
-                              const bId = s.studentData?.batchId || 'UNASSIGNED';
-                              if (!batchGroupMap.has(bId)) batchGroupMap.set(bId, []);
-                              batchGroupMap.get(bId)!.push(s);
-                           });
-                           const rows: React.ReactNode[] = [];
-                           const colSpan = historyFilterDate ? 4 : 6;
-                           batchGroupMap.forEach((batchStudents, batchId) => {
-                              const batchName = metaData.batches[batchId] || batchId;
-                              rows.push(
-                                 <tr key={`dt_banner_${batchId}`}>
-                                    <td colSpan={colSpan} className="px-3 py-2 bg-indigo-600">
-                                       <div className="flex items-center gap-2">
-                                          <div className="h-1.5 w-1.5 rounded-full bg-indigo-200" />
-                                          <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] flex-1">Batch: {batchName}</span>
-                                          <span className="text-[10px] font-bold text-indigo-200">{batchStudents.length} students</span>
-                                       </div>
-                                    </td>
-                                 </tr>
-                              );
-                              batchStudents.forEach(s => {
+                           {(() => {
+                              const filtered = visibleStudents.filter(s => {
+                                 if (historyFilterDate) return true;
                                  const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
                                  const filteredRecs = myRecs.filter(r => {
                                     const inStart = !historyStartDate || r.date >= historyStartDate;
                                     const inEnd = !historyTillDate || r.date <= historyTillDate;
                                     return inStart && inEnd;
                                  });
-                                 if (historyFilterDate) {
-                                    const dateRecs = myRecs.filter(r => r.date === historyFilterDate);
-                                    rows.push(
-                                       <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
-                                          <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
-                                          <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase">{s.displayName}</td>
-                                          <td className="p-3 text-center text-slate-400 font-black text-[10px]">{metaData.batches[s.studentData?.batchId || ''] || s.studentData?.batchId}</td>
-                                          <td className="p-3 text-center">
-                                             {dateRecs.length > 0 ? (
-                                                <div className="flex gap-2 justify-center flex-wrap">
-                                                   {dateRecs.map(r => (
-                                                      <span key={r.id} className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-black border tracking-wider ${r.isPresent ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
-                                                         L{r.lectureSlot || 1}: {r.isPresent ? 'P' : 'A'}
-                                                      </span>
-                                                   ))}
-                                                </div>
-                                             ) : <span className="text-slate-200 italic font-black text-[10px] tracking-widest uppercase">No Data</span>}
-                                          </td>
-                                       </tr>
-                                    );
-                                 } else {
+                                 if (attendanceFilter === 'CUSTOM') {
                                     const total = filteredRecs.length;
                                     const present = filteredRecs.filter(r => r.isPresent).length;
                                     const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-                                    rows.push(
-                                       <tr key={s.uid} onClick={() => setViewHistoryStudent(s)} className="hover:bg-indigo-50/50 cursor-pointer transition-colors group">
-                                          <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
-                                          <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase group-hover:text-indigo-600 transition-colors">{s.displayName}</td>
-                                          <td className="p-3 text-center text-slate-400 font-bold text-xs">{total}</td>
-                                          <td className="p-3 text-center text-emerald-600 font-bold text-xs">{present}</td>
-                                          <td className="p-3 text-center">
-                                             <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black tracking-wider ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{pct}%</span>
-                                          </td>
-                                          <td className="p-3 text-right text-slate-300 group-hover:text-indigo-400 transition-colors">
-                                             <ChevronDown className="h-4 w-4 inline transform -rotate-90" />
-                                          </td>
-                                       </tr>
-                                    );
+                                    if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
+                                    if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
+                                    if (attendanceOperator === 'GT') return pct > attendanceThreshold;
+                                    if (attendanceOperator === 'LT') return pct < attendanceThreshold;
                                  }
+                                 return true;
                               });
-                           });
-                           return rows;
-                        })()}
+                              const batchGroupMap = new Map<string, typeof filtered>();
+                              filtered.forEach(s => {
+                                 const bId = s.studentData?.batchId || 'UNASSIGNED';
+                                 if (!batchGroupMap.has(bId)) batchGroupMap.set(bId, []);
+                                 batchGroupMap.get(bId)!.push(s);
+                              });
+                              const rows: React.ReactNode[] = [];
+                              const colSpan = historyFilterDate ? 4 : 6;
+                              batchGroupMap.forEach((batchStudents, batchId) => {
+                                 const batchName = metaData.batches[batchId] || batchId;
+                                 rows.push(
+                                    <tr key={`dt_banner_${batchId}`}>
+                                       <td colSpan={colSpan} className="px-3 py-2 bg-indigo-600">
+                                          <div className="flex items-center gap-2">
+                                             <div className="h-1.5 w-1.5 rounded-full bg-indigo-200" />
+                                             <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] flex-1">Batch: {batchName}</span>
+                                             <span className="text-[10px] font-bold text-indigo-200">{batchStudents.length} students</span>
+                                          </div>
+                                       </td>
+                                    </tr>
+                                 );
+                                 batchStudents.forEach(s => {
+                                    const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
+                                    const filteredRecs = myRecs.filter(r => {
+                                       const inStart = !historyStartDate || r.date >= historyStartDate;
+                                       const inEnd = !historyTillDate || r.date <= historyTillDate;
+                                       return inStart && inEnd;
+                                    });
+                                    if (historyFilterDate) {
+                                       const dateRecs = myRecs.filter(r => r.date === historyFilterDate);
+                                       rows.push(
+                                          <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
+                                             <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
+                                             <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase">{s.displayName}</td>
+                                             <td className="p-3 text-center text-slate-400 font-black text-[10px]">{metaData.batches[s.studentData?.batchId || ''] || s.studentData?.batchId}</td>
+                                             <td className="p-3 text-center">
+                                                {dateRecs.length > 0 ? (
+                                                   <div className="flex gap-2 justify-center flex-wrap">
+                                                      {dateRecs.map(r => (
+                                                         <span key={r.id} className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-black border tracking-wider ${r.isPresent ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                                            L{r.lectureSlot || 1}: {r.isPresent ? 'P' : 'A'}
+                                                         </span>
+                                                      ))}
+                                                   </div>
+                                                ) : <span className="text-slate-200 italic font-black text-[10px] tracking-widest uppercase">No Data</span>}
+                                             </td>
+                                          </tr>
+                                       );
+                                    } else {
+                                       const total = filteredRecs.length;
+                                       const present = filteredRecs.filter(r => r.isPresent).length;
+                                       const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                                       rows.push(
+                                          <tr key={s.uid} onClick={() => setViewHistoryStudent(s)} className="hover:bg-indigo-50/50 cursor-pointer transition-colors group">
+                                             <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
+                                             <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase group-hover:text-indigo-600 transition-colors">{s.displayName}</td>
+                                             <td className="p-3 text-center text-slate-400 font-bold text-xs">{total}</td>
+                                             <td className="p-3 text-center text-emerald-600 font-bold text-xs">{present}</td>
+                                             <td className="p-3 text-center">
+                                                <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black tracking-wider ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>{pct}%</span>
+                                             </td>
+                                             <td className="p-3 text-right text-slate-300 group-hover:text-indigo-400 transition-colors">
+                                                <ChevronDown className="h-4 w-4 inline transform -rotate-90" />
+                                             </td>
+                                          </tr>
+                                       );
+                                    }
+                                 });
+                              });
+                              return rows;
+                           })()}
                         </tbody>
                      </table>
                   </div>
@@ -2485,6 +2575,11 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      <div className="flex justify-between"><span className="text-slate-500">Slots:</span> <span className="font-semibold text-slate-900">L{selectedSlots.join(', L')}</span></div>
                      <div className="flex justify-between items-start"><span className="text-slate-500">Batches:</span> <div className="text-right font-semibold text-slate-900">{selectedMarkingBatches.map(b => metaData.batches[b]).join(', ')}</div></div>
                   </div>
+                  {networkError && (
+                     <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                        {networkError}
+                     </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4 text-center">
                      <div className="p-3 bg-green-50 text-green-800 rounded-lg border border-green-100">
@@ -2891,7 +2986,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
 
          // Find all records that apply to this batch specifically or to the whole class
          const batchRegularRecs = regularRecs.filter(r => r.batchId === batchId || r.batchId === 'ALL');
-         
+
          const batchSubjectSessionCounts: Record<string, number> = {};
          uniqueSubjectIds.forEach(sid => {
             const batchSubjectSessions = new Set(batchRegularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
@@ -3062,7 +3157,7 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                      <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Session</button>
                      <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Range</button>
                   </div>
-                   {exportRange === 'CUSTOM' && (
+                  {exportRange === 'CUSTOM' && (
                      <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
                         <Input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
                         <Input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
@@ -3157,62 +3252,62 @@ const CoordinatorReport: React.FC<{ branchId: string; branchName: string; studen
                            <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Percentage</th>
                         </tr>
                      </thead>
-                        {(() => {
-                           const previewBatchesMap = new Map<string, User[]>();
-                           filteredStudents.forEach(s => {
-                              const bId = s.studentData?.batchId || 'UNASSIGNED';
-                              if (!previewBatchesMap.has(bId)) previewBatchesMap.set(bId, []);
-                              previewBatchesMap.get(bId)!.push(s);
-                           });
+                     {(() => {
+                        const previewBatchesMap = new Map<string, User[]>();
+                        filteredStudents.forEach(s => {
+                           const bId = s.studentData?.batchId || 'UNASSIGNED';
+                           if (!previewBatchesMap.has(bId)) previewBatchesMap.set(bId, []);
+                           previewBatchesMap.get(bId)!.push(s);
+                        });
 
-                           return Array.from(previewBatchesMap.entries()).map(([batchId, batchStudents]) => {
-                              const batchNameStr = metaData.batches?.[batchId] || batchId;
-                              return (
-                                 <tbody key={batchId} className="divide-y divide-slate-50">
-                                    <tr className="bg-indigo-50/50">
-                                       <td colSpan={5} className="p-3 text-[10px] font-black tracking-widest text-indigo-800 uppercase text-center focus:bg-indigo-100 shadow-sm">
-                                          {`>>> BATCH: ${batchNameStr} <<<`}
-                                       </td>
-                                    </tr>
-                                    {batchStudents.map(s => {
-                                       // Re-calculate the actual regular records for this specific student matching the export criteria
-                                       const studentRegularRecs = previewRecords.filter(r => {
-                                          if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
-                                          const subj = metaData.subjects[r.subjectId];
-                                          if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
-                                          if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
-                                          return true;
-                                       });
-                                       
-                                       const studentTotalSessions = studentRegularRecs.length;
-                                       const regularAtt = studentRegularRecs.filter(r => r.isPresent).length;
-                                       const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent).length;
-                                       const pct = studentTotalSessions === 0 ? 0 : Math.round(((regularAtt + extraAtt) / studentTotalSessions) * 100);
+                        return Array.from(previewBatchesMap.entries()).map(([batchId, batchStudents]) => {
+                           const batchNameStr = metaData.batches?.[batchId] || batchId;
+                           return (
+                              <tbody key={batchId} className="divide-y divide-slate-50">
+                                 <tr className="bg-indigo-50/50">
+                                    <td colSpan={5} className="p-3 text-[10px] font-black tracking-widest text-indigo-800 uppercase text-center focus:bg-indigo-100 shadow-sm">
+                                       {`>>> BATCH: ${batchNameStr} <<<`}
+                                    </td>
+                                 </tr>
+                                 {batchStudents.map(s => {
+                                    // Re-calculate the actual regular records for this specific student matching the export criteria
+                                    const studentRegularRecs = previewRecords.filter(r => {
+                                       if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
+                                       const subj = metaData.subjects[r.subjectId];
+                                       if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+                                       if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+                                       return true;
+                                    });
 
-                                       return (
-                                          <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
-                                             <td className="p-4 font-mono text-[10px] text-slate-400">{s.studentData?.rollNo}</td>
-                                             <td className="p-4">
-                                                <div className="font-black text-slate-800 uppercase tracking-tight text-xs">{s.displayName}</div>
-                                                <div className="text-[9px] font-mono text-slate-900">{s.studentData?.enrollmentId}</div>
-                                             </td>
-                                             <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt}/{studentTotalSessions}</td>
-                                             <td className="p-4 text-center">
-                                                <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black">+{extraAtt}</span>
-                                             </td>
-                                             <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt + extraAtt}/{studentTotalSessions}</td>
-                                             <td className="p-4 text-right">
-                                                <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                   {pct}%
-                                                </div>
-                                             </td>
-                                          </tr>
-                                       );
-                                    })}
-                                 </tbody>
-                              );
-                           });
-                        })()}
+                                    const studentTotalSessions = studentRegularRecs.length;
+                                    const regularAtt = studentRegularRecs.filter(r => r.isPresent).length;
+                                    const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent).length;
+                                    const pct = studentTotalSessions === 0 ? 0 : Math.round(((regularAtt + extraAtt) / studentTotalSessions) * 100);
+
+                                    return (
+                                       <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
+                                          <td className="p-4 font-mono text-[10px] text-slate-400">{s.studentData?.rollNo}</td>
+                                          <td className="p-4">
+                                             <div className="font-black text-slate-800 uppercase tracking-tight text-xs">{s.displayName}</div>
+                                             <div className="text-[9px] font-mono text-slate-900">{s.studentData?.enrollmentId}</div>
+                                          </td>
+                                          <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt}/{studentTotalSessions}</td>
+                                          <td className="p-4 text-center">
+                                             <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black">+{extraAtt}</span>
+                                          </td>
+                                          <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt + extraAtt}/{studentTotalSessions}</td>
+                                          <td className="p-4 text-right">
+                                             <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                {pct}%
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    );
+                                 })}
+                              </tbody>
+                           );
+                        });
+                     })()}
                   </table>
                </div>
             </div>
