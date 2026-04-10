@@ -493,7 +493,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                      </div>
                      {selectedSessions.length === 0 && (
                         <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-amber-700">
-                           Please select a lecture slot before saving attendance.
+                           Please select a lecture slot before Marking attendance.
                         </div>
                      )}
                      <div className="flex flex-wrap gap-2.5">
@@ -1889,7 +1889,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            </label>
                            {selectedSlots.length === 0 && (
                               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-amber-700">
-                                 Please select a lecture slot before saving attendance.
+                                 Please select a lecture slot before Marking attendance.
                               </div>
                            )}
                            <div className="flex gap-2 scrollbar-none overflow-x-auto pb-1">
