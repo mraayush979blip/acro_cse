@@ -2279,6 +2279,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            <tr>
                               <th className="p-3 text-slate-900 font-bold uppercase text-[10px] tracking-widest leading-none">S.No</th>
                               <th className="p-3 text-slate-900 font-bold uppercase text-[10px] tracking-widest leading-none">Name</th>
+                              <th className="p-3 text-slate-900 font-bold uppercase text-[10px] tracking-widest leading-none">Enrollment</th>
                               {historyFilterDate ? (
                                  <>
                                     <th className="p-3 text-slate-900 font-bold text-center uppercase text-[10px] tracking-widest leading-none">Batch</th>
@@ -2322,7 +2323,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                  batchGroupMap.get(bId)!.push(s);
                               });
                               const rows: React.ReactNode[] = [];
-                              const colSpan = historyFilterDate ? 4 : 6;
+                              const colSpan = historyFilterDate ? 5 : 7;
                               batchGroupMap.forEach((batchStudents, batchId) => {
                                  const batchName = metaData.batches[batchId] || batchId;
                                  rows.push(
@@ -2349,6 +2350,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                           <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
                                              <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
                                              <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase">{s.displayName}</td>
+                                             <td className="p-3 font-mono text-slate-500 text-xs tracking-tighter">{s.studentData?.enrollmentId || '-'}</td>
                                              <td className="p-3 text-center text-slate-400 font-black text-[10px]">{metaData.batches[s.studentData?.batchId || ''] || s.studentData?.batchId}</td>
                                              <td className="p-3 text-center">
                                                 {dateRecs.length > 0 ? (
@@ -2371,6 +2373,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                           <tr key={s.uid} onClick={() => setViewHistoryStudent(s)} className="hover:bg-indigo-50/50 cursor-pointer transition-colors group">
                                              <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
                                              <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase group-hover:text-indigo-600 transition-colors">{s.displayName}</td>
+                                             <td className="p-3 font-mono text-slate-500 text-xs tracking-tighter">{s.studentData?.enrollmentId || '-'}</td>
                                              <td className="p-3 text-center text-slate-400 font-bold text-xs">{total}</td>
                                              <td className="p-3 text-center text-emerald-600 font-bold text-xs">{present}</td>
                                              <td className="p-3 text-center">
