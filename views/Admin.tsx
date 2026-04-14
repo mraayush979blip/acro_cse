@@ -1504,19 +1504,28 @@ function AttendanceMonitor() {
 
   const stats = React.useMemo(() => {
     const sessionsMap = new Map<string, Set<string>>();
+    const presentCounts = new Map<string, number>();
+
     attendance.forEach(a => {
       const key = `${a.branchId}_${a.batchId}`;
       if (!sessionsMap.has(key)) sessionsMap.set(key, new Set());
       sessionsMap.get(key)?.add(`${a.subjectId}_${a.lectureSlot}`);
+
+      if (a.isPresent) {
+        presentCounts.set(a.studentId, (presentCounts.get(a.studentId) || 0) + 1);
+      }
     });
 
-    const studentStats = students.map(s => {
+    return students.map(s => {
       const bId = s.studentData?.branchId || '';
       const batId = s.studentData?.batchId || '';
       const sessionsForBatch = sessionsMap.get(`${bId}_${batId}`) || new Set();
       const sessionsForAll = sessionsMap.get(`${bId}_ALL`) || new Set();
+      
+      // Use a temporary set to count unique sessions across Batch and ALL assignments
       const totalSessions = new Set([...Array.from(sessionsForBatch), ...Array.from(sessionsForAll)]).size;
-      const presentCount = attendance.filter(a => a.studentId === s.uid && a.isPresent).length;
+      const presentCount = presentCounts.get(s.uid) || 0;
+
       return {
         ...s,
         totalLectures: totalSessions,
@@ -1524,7 +1533,6 @@ function AttendanceMonitor() {
         isIncomplete: presentCount < totalSessions
       };
     });
-    return studentStats;
   }, [students, attendance]);
 
   const filteredStats = stats.filter(s => {

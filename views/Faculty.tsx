@@ -1126,6 +1126,63 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       return allBranchStudents.filter(s => s.studentData?.batchId && selectedMarkingBatches.includes(s.studentData.batchId));
    }, [allBranchStudents, selectedMarkingBatches]);
 
+   // Memoized History Data Processing for high performance
+   const historyProcessedData = useMemo(() => {
+      if (activeTab !== 'HISTORY') return { filteredStudents: [], batchGroupMap: new Map(), studentStats: new Map() };
+
+      // 1. Statistics Calculation (Pre-compute per-student stats for the selected period)
+      const statsMap = new Map<string, { total: number, present: number, pct: number, filteredRecs: AttendanceRecord[], dateRecs: AttendanceRecord[] }>();
+
+      visibleStudents.forEach(s => {
+         const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
+         const filteredRecs = myRecs.filter(r => {
+            const inStart = !historyStartDate || r.date >= historyStartDate;
+            const inEnd = !historyTillDate || r.date <= historyTillDate;
+            return inStart && inEnd;
+         });
+         const total = filteredRecs.length;
+         const present = filteredRecs.filter(r => r.isPresent).length;
+         const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+         const dateRecs = myRecs.filter(r => r.date === historyFilterDate);
+
+         statsMap.set(s.uid, { total, present, pct, filteredRecs, dateRecs });
+      });
+
+      // 2. Filtration Logic (Apply UI filters on score threshold)
+      const filtered = visibleStudents.filter(s => {
+         if (historyFilterDate) return true;
+         if (attendanceFilter === 'CUSTOM') {
+            const stats = statsMap.get(s.uid)!;
+            const pct = stats.pct;
+            if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
+            if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
+            if (attendanceOperator === 'GT') return pct > attendanceThreshold;
+            if (attendanceOperator === 'LT') return pct < attendanceThreshold;
+         }
+         return true;
+      });
+
+      // 3. Batch Grouping
+      const batchGroupMap = new Map<string, User[]>();
+      filtered.forEach(s => {
+         const bId = s.studentData?.batchId || 'UNASSIGNED';
+         if (!batchGroupMap.has(bId)) batchGroupMap.set(bId, []);
+         batchGroupMap.get(bId)!.push(s);
+      });
+
+      return { filteredStudents: filtered, batchGroupMap, studentStats: statsMap };
+   }, [
+      activeTab,
+      visibleStudents,
+      allClassRecords,
+      historyFilterDate,
+      historyStartDate,
+      historyTillDate,
+      attendanceFilter,
+      attendanceThreshold,
+      attendanceOperator
+   ]);
+
 
    // --- Handlers ---
    const handleMark = (uid: string) => {
@@ -2175,34 +2232,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
                   <div className="md:hidden space-y-3 pb-20">
                      {(() => {
-                        // Filter students
-                        const filtered = visibleStudents.filter(s => {
-                           if (historyFilterDate) return true;
-                           const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
-                           const filteredRecs = myRecs.filter(r => {
-                              const inStart = !historyStartDate || r.date >= historyStartDate;
-                              const inEnd = !historyTillDate || r.date <= historyTillDate;
-                              return inStart && inEnd;
-                           });
-                           if (attendanceFilter === 'CUSTOM') {
-                              const total = filteredRecs.length;
-                              const present = filteredRecs.filter(r => r.isPresent).length;
-                              const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-                              if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
-                              if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
-                              if (attendanceOperator === 'GT') return pct > attendanceThreshold;
-                              if (attendanceOperator === 'LT') return pct < attendanceThreshold;
-                           }
-                           return true;
-                        });
-                        // Group by batch
-                        const batchGroupMap = new Map<string, typeof filtered>();
-                        filtered.forEach(s => {
-                           const bId = s.studentData?.batchId || 'UNASSIGNED';
-                           if (!batchGroupMap.has(bId)) batchGroupMap.set(bId, []);
-                           batchGroupMap.get(bId)!.push(s);
-                        });
+                        const { batchGroupMap, studentStats } = historyProcessedData;
                         const nodes: React.ReactNode[] = [];
+                        
                         batchGroupMap.forEach((batchStudents, batchId) => {
                            const batchName = metaData.batches[batchId] || batchId;
                            nodes.push(
@@ -2213,14 +2245,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               </div>
                            );
                            batchStudents.forEach(s => {
-                              const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
-                              const filteredRecs = myRecs.filter(r => {
-                                 const inStart = !historyStartDate || r.date >= historyStartDate;
-                                 const inEnd = !historyTillDate || r.date <= historyTillDate;
-                                 return inStart && inEnd;
-                              });
+                              const stats = studentStats.get(s.uid)!;
                               if (historyFilterDate) {
-                                 const dateRecs = myRecs.filter(r => r.date === historyFilterDate);
+                                 const dateRecs = stats.dateRecs;
                                  nodes.push(
                                     <div key={s.uid} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
                                        <div className="flex-1 min-w-0 mr-4">
@@ -2241,9 +2268,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                     </div>
                                  );
                               } else {
-                                 const total = filteredRecs.length;
-                                 const present = filteredRecs.filter(r => r.isPresent).length;
-                                 const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                                 const pct = stats.pct;
                                  nodes.push(
                                     <div key={s.uid} onClick={() => setViewHistoryStudent(s)} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between active:scale-[0.98] transition-all group">
                                        <div className="flex-1 min-w-0 mr-4">
@@ -2270,7 +2295,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                         });
                         return nodes;
                      })()}
-                     {visibleStudents.length === 0 && <div className="py-20 text-center font-black text-slate-300 uppercase tracking-widest text-[10px]">No Records Found</div>}
+                     {historyProcessedData.filteredStudents.length === 0 && <div className="py-20 text-center font-black text-slate-300 uppercase tracking-widest text-[10px]">No Records Found</div>}
                   </div>
 
                   <div className="hidden md:block overflow-x-auto">
@@ -2297,31 +2322,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                            {(() => {
-                              const filtered = visibleStudents.filter(s => {
-                                 if (historyFilterDate) return true;
-                                 const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
-                                 const filteredRecs = myRecs.filter(r => {
-                                    const inStart = !historyStartDate || r.date >= historyStartDate;
-                                    const inEnd = !historyTillDate || r.date <= historyTillDate;
-                                    return inStart && inEnd;
-                                 });
-                                 if (attendanceFilter === 'CUSTOM') {
-                                    const total = filteredRecs.length;
-                                    const present = filteredRecs.filter(r => r.isPresent).length;
-                                    const pct = total === 0 ? 0 : Math.round((present / total) * 100);
-                                    if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
-                                    if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
-                                    if (attendanceOperator === 'GT') return pct > attendanceThreshold;
-                                    if (attendanceOperator === 'LT') return pct < attendanceThreshold;
-                                 }
-                                 return true;
-                              });
-                              const batchGroupMap = new Map<string, typeof filtered>();
-                              filtered.forEach(s => {
-                                 const bId = s.studentData?.batchId || 'UNASSIGNED';
-                                 if (!batchGroupMap.has(bId)) batchGroupMap.set(bId, []);
-                                 batchGroupMap.get(bId)!.push(s);
-                              });
+                              const { batchGroupMap, studentStats } = historyProcessedData;
                               const rows: React.ReactNode[] = [];
                               const colSpan = historyFilterDate ? 5 : 7;
                               batchGroupMap.forEach((batchStudents, batchId) => {
@@ -2338,21 +2339,16 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                     </tr>
                                  );
                                  batchStudents.forEach(s => {
-                                    const myRecs = allClassRecords.filter(r => r.studentId === s.uid);
-                                    const filteredRecs = myRecs.filter(r => {
-                                       const inStart = !historyStartDate || r.date >= historyStartDate;
-                                       const inEnd = !historyTillDate || r.date <= historyTillDate;
-                                       return inStart && inEnd;
-                                    });
+                                    const stats = studentStats.get(s.uid)!;
                                     if (historyFilterDate) {
-                                       const dateRecs = myRecs.filter(r => r.date === historyFilterDate);
+                                       const dateRecs = stats.dateRecs;
                                        rows.push(
                                           <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
                                              <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
                                              <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase">{s.displayName}</td>
                                              <td className="p-3 font-mono text-slate-500 text-xs tracking-tighter">{s.studentData?.enrollmentId || '-'}</td>
-                                             <td className="p-3 text-center text-slate-400 font-black text-[10px]">{metaData.batches[s.studentData?.batchId || ''] || s.studentData?.batchId}</td>
-                                             <td className="p-3 text-center">
+                                             <td className="p-3 text-center text-slate-400 font-black text-[10px]">{batchName}</td>
+                                             <td className="p-3">
                                                 {dateRecs.length > 0 ? (
                                                    <div className="flex gap-2 justify-center flex-wrap">
                                                       {dateRecs.map(r => (
@@ -2366,9 +2362,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                           </tr>
                                        );
                                     } else {
-                                       const total = filteredRecs.length;
-                                       const present = filteredRecs.filter(r => r.isPresent).length;
-                                       const pct = total === 0 ? 0 : Math.round((present / total) * 100);
+                                       const { total, present, pct } = stats;
                                        rows.push(
                                           <tr key={s.uid} onClick={() => setViewHistoryStudent(s)} className="hover:bg-indigo-50/50 cursor-pointer transition-colors group">
                                              <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
