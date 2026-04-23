@@ -103,14 +103,37 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    };
 
    useEffect(() => {
+      setSelectedSessions([]);
+      setStatus({});
+      setAttendanceDate(new Date().toISOString().split('T')[0]);
+   }, [branchId]);
+
+   // Track previous state to avoid unnecessary resets
+   const prevSelectionRef = React.useRef<{ date: string, branchId: string }>({ date: '', branchId: '' });
+
+   useEffect(() => {
       if (selectedSessions.length === 1) {
          const slot = selectedSessions[0];
          const existing = history.filter(r => r.date === attendanceDate && r.lectureSlot === slot);
-         const newStatus: Record<string, boolean> = {};
-         existing.forEach(r => { if (r.isPresent) newStatus[r.studentId] = true; });
-         setStatus(newStatus);
+         
+         if (existing.length > 0) {
+            const newStatus: Record<string, boolean> = {};
+            existing.forEach(r => { if (r.isPresent) newStatus[r.studentId] = true; });
+            setStatus(newStatus);
+         } else {
+            // No existing data, only reset if it's a new date or branch (otherwise preserve manual marks)
+            if (prevSelectionRef.current.date !== attendanceDate || prevSelectionRef.current.branchId !== branchId) {
+               setStatus({});
+            }
+         }
+      } else if (selectedSessions.length === 0) {
+          // If clearing slots, and date/branch changed, we should reset
+          if (prevSelectionRef.current.date !== attendanceDate || prevSelectionRef.current.branchId !== branchId) {
+              setStatus({});
+          }
       }
-   }, [attendanceDate, selectedSessions, history]);
+      prevSelectionRef.current = { date: attendanceDate, branchId };
+   }, [attendanceDate, selectedSessions, history, branchId]);
 
    const toggleStudent = (uid: string) => {
       setStatus(prev => ({ ...prev, [uid]: !prev[uid] }));
@@ -491,11 +514,6 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                            </span>
                         </label>
                      </div>
-                     {selectedSessions.length === 0 && (
-                        <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-amber-700">
-                           Please select a lecture slot before Marking attendance.
-                        </div>
-                     )}
                      <div className="flex flex-wrap gap-2.5">
                         {[1, 2, 3, 4, 5, 6, 7].map(num => (
                            <button
@@ -540,7 +558,22 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
 
                {/* Student Selection Section */}
                <div className="space-y-4">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
+                  {selectedSessions.length === 0 && (
+                     <div className="px-2 animate-in fade-in slide-in-from-top-2 duration-500">
+                        <div className="rounded-2xl border-2 border-amber-500 bg-amber-50 p-4 shadow-lg shadow-amber-100/50">
+                           <div className="flex items-center gap-3">
+                              <div className="p-2.5 bg-amber-500 rounded-xl text-white shadow-lg shadow-amber-200">
+                                 <AlertTriangle className="h-5 w-5" />
+                              </div>
+                              <div>
+                                 <h4 className="text-xs font-black text-amber-900 uppercase tracking-tight">Register Locked</h4>
+                                 <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide">Choose a lecture slot above to start marking the attendance.</p>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  )}
+                  <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2 transition-all duration-300 ${selectedSessions.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
                      <div className="space-y-0.5">
                         <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
                            Attendance Register
@@ -572,7 +605,18 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                   </div>
 
                   {/* Optimized Student List */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-3 pb-32">
+                  <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-3 pb-32 transition-all duration-300 ${selectedSessions.length === 0 ? 'opacity-40 grayscale-[0.5] pointer-events-none cursor-not-allowed select-none' : ''}`}>
+                     {selectedSessions.length === 0 && (
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-10 text-center pointer-events-none">
+                           <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl space-y-4">
+                              <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-500">
+                                 <RefreshCw className="h-8 w-8 animate-spin-slow" />
+                              </div>
+                              <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Marking Register Locked</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Select at least one slot<br/>above to unlock students</p>
+                           </div>
+                        </div>
+                     )}
                      {students.map((s) => (
                         <div
                            key={s.uid}
@@ -1053,14 +1097,25 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       }
    }, [selBranchId, selSubjectId, assignments, metaData.rawBatches]);
 
+   // 3. Reset marking selection when Branch or Subject changes to prevent cross-class mistakes
+   useEffect(() => {
+      setSelectedSlots([]);
+      setAttendanceDate(new Date().toISOString().split('T')[0]);
+      setAttendanceStatus({});
+      setIsEditMode(false);
+      setSaveMessage('');
+   }, [selBranchId, selSubjectId]);
+
    // 4. Initialize Status / Detect Edit Mode
+   // Track previous state to avoid unnecessary resets
+   const prevContextRef = React.useRef<{ date: string, branchId: string, subjectId: string, batchIds: string }>({ 
+      date: '', branchId: '', subjectId: '', batchIds: '' 
+   });
+
    useEffect(() => {
       // Identify students currently visible
       const visible = allBranchStudents.filter(s => s.studentData?.batchId && selectedMarkingBatches.includes(s.studentData.batchId));
 
-      // Check if we have existing records for the selected Date + Slots
-      // Note: If multiple slots are selected, we look for *any* match to trigger edit mode.
-      // If conflicts exist (e.g. Present in Slot 1, Absent in Slot 2), we prioritize the record found first.
       const existingRecords = allClassRecords.filter(r =>
          r.date === attendanceDate &&
          r.branchId === selBranchId &&
@@ -1068,28 +1123,45 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          selectedSlots.includes(r.lectureSlot || 1)
       );
 
-      const newStatus: Record<string, boolean> = {};
-      let foundExisting = false;
+      const currentContext = {
+         date: attendanceDate,
+         branchId: selBranchId,
+         subjectId: selSubjectId,
+         batchIds: selectedMarkingBatches.sort().join(',')
+      };
 
+      const contextChanged = currentContext.date !== prevContextRef.current.date ||
+                           currentContext.branchId !== prevContextRef.current.branchId ||
+                           currentContext.subjectId !== prevContextRef.current.subjectId ||
+                           currentContext.batchIds !== prevContextRef.current.batchIds;
+
+      const newStatus: Record<string, boolean> = {};
+      
       if (existingRecords.length > 0) {
-         foundExisting = true;
+         // Found existing records in DB - Sync UI with DB (Edit Mode)
          visible.forEach(s => {
             const rec = existingRecords.find(r => r.studentId === s.uid);
-            if (rec) {
-               newStatus[s.uid] = rec.isPresent;
-            } else {
-               // No record for this specific student in this slot? Default to Present (or keep previous state if complex merging needed, but simple is better)
-               newStatus[s.uid] = true;
-            }
+            newStatus[s.uid] = rec ? rec.isPresent : true;
          });
+         setIsEditMode(true);
+         setAttendanceStatus(newStatus);
       } else {
-         foundExisting = false;
-         // Default to Present
-         visible.forEach(s => newStatus[s.uid] = true);
+         // No existing records found for this combination
+         const wasEditMode = isEditMode;
+         setIsEditMode(false);
+         
+         // Only reset status to "All Present" if:
+         // 1. We were switching from a saved record to a blank one (wasEditMode)
+         // 2. The whole context (Date/Subject/Batches) has changed
+         // 3. Status is currently empty
+         if (wasEditMode || contextChanged || Object.keys(attendanceStatus).length === 0) {
+            visible.forEach(s => newStatus[s.uid] = true);
+            setAttendanceStatus(newStatus);
+         }
+         // Otherwise, if we were just marking a new session and added a slot, keep the current marks!
       }
-
-      setIsEditMode(foundExisting);
-      setAttendanceStatus(newStatus);
+      
+      prevContextRef.current = currentContext;
    }, [selectedMarkingBatches, attendanceDate, selectedSlots, allClassRecords, selBranchId, selSubjectId, allBranchStudents]);
 
 
@@ -1932,195 +2004,228 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                         </div>
 
                         <div className="space-y-2">
-                           <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                              <span className="inline-flex items-center gap-1.5">
-                                 <span>Lecture Slots</span>
-                                 <span
-                                    className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600 cursor-help"
-                                    title="Select at least one slot before saving attendance."
-                                    aria-label="Slot selection info"
-                                 >
-                                    ℹ️
+                           <div className="space-y-1">
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                 <span className="inline-flex items-center gap-1.5">
+                                    <span>Lecture Slots</span>
+                                    <span
+                                       className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600 cursor-help"
+                                       title="Select at least one slot before saving attendance."
+                                       aria-label="Slot selection info"
+                                    >
+                                       ℹ️
+                                    </span>
                                  </span>
-                              </span>
-                           </label>
-                           {selectedSlots.length === 0 && (
-                              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-amber-700">
-                                 Please select a lecture slot before Marking attendance.
+                              </label>
+                              <div className="flex gap-2 scrollbar-none overflow-x-auto pb-1">
+                                 {[1, 2, 3, 4, 5, 6, 7].map(slot => (
+                                    <button
+                                       key={slot}
+                                       onClick={() => toggleSlot(slot)}
+                                       aria-pressed={selectedSlots.includes(slot)}
+                                       className={`flex-shrink-0 w-10 h-10 rounded-xl text-xs font-black transition-all border-2 ${selectedSlots.includes(slot) ? 'bg-indigo-600 border-indigo-600 text-white shadow-2xl shadow-indigo-300/70 animate-pulse' : 'bg-white border-slate-100 text-slate-400'}`}
+                                    >
+                                       {slot}
+                                    </button>
+                                 ))}
                               </div>
-                           )}
-                           <div className="flex gap-2 scrollbar-none overflow-x-auto pb-1">
-                              {[1, 2, 3, 4, 5, 6, 7].map(slot => (
-                                 <button
-                                    key={slot}
-                                    onClick={() => toggleSlot(slot)}
-                                    aria-pressed={selectedSlots.includes(slot)}
-                                    className={`flex-shrink-0 w-10 h-10 rounded-xl text-xs font-black transition-all border-2 ${selectedSlots.includes(slot) ? 'bg-indigo-600 border-indigo-600 text-white shadow-2xl shadow-indigo-300/70 animate-pulse' : 'bg-white border-slate-100 text-slate-400'}`}
-                                 >
-                                    {slot}
-                                 </button>
-                              ))}
                            </div>
                         </div>
                      </div>
 
-                     <div className="flex gap-2">
+                     {selectedSlots.length === 0 && (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-500">
+                           <div className="rounded-2xl border-2 border-amber-500 bg-amber-50 p-4 shadow-lg shadow-amber-100/50">
+                              <div className="flex items-center gap-3">
+                                 <div className="p-2.5 bg-amber-500 rounded-xl text-white shadow-lg shadow-amber-200">
+                                    <AlertTriangle className="h-5 w-5" />
+                                 </div>
+                                 <div>
+                                    <h4 className="text-xs font-black text-amber-900 uppercase tracking-tight">Register Locked</h4>
+                                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide">Choose a lecture slot above to start marking the attendance.</p>
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+                     )}
+
+                     <div className={`flex gap-2 transition-all duration-300 ${selectedSlots.length === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
                         <button onClick={() => handleMarkAll(true)} className="flex-1 py-2 bg-emerald-50 text-emerald-700 active:bg-emerald-100 rounded-xl border border-emerald-100 text-[10px] font-black uppercase tracking-widest transition-all">Mark All Present</button>
                         <button onClick={() => handleMarkAll(false)} className="flex-1 py-2 bg-rose-50 text-rose-700 active:bg-rose-100 rounded-xl border border-rose-100 text-[10px] font-black uppercase tracking-widest transition-all">Mark All Absent</button>
                      </div>
-                  </div>
 
-                  {/* Mobile Student List (Cards) */}
-                  <div className="md:hidden space-y-3 pb-20">
-                     {loadingStudents ? (
-                        // Mobile Skeletons
-                        Array.from({ length: 5 }).map((_, i) => (
-                           <div key={i} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
-                              <div className="flex items-center justify-between">
-                                 <div className="flex items-center gap-3 w-full">
-                                    <Skeleton variant="circular" width={32} height={32} />
-                                    <div className="space-y-1 w-full max-w-[150px]">
-                                       <Skeleton width="80%" height={16} />
-                                       <Skeleton width="40%" height={12} />
-                                    </div>
+                     {/* Mobile Student List (Cards) */}
+                     <div className={`md:hidden space-y-3 pb-20 relative transition-all duration-300 ${selectedSlots.length === 0 ? 'opacity-40 grayscale-[0.5] pointer-events-none select-none' : ''}`}>
+                        {selectedSlots.length === 0 && (
+                           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-10 text-center pointer-events-none">
+                              <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl space-y-4">
+                                 <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-500">
+                                    <RefreshCw className="h-8 w-8 animate-spin-slow" />
                                  </div>
-                                 <Skeleton width={48} height={24} className="rounded-full" />
+                                 <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Marking Register Locked</p>
+                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Select at least one slot<br />above to unlock students</p>
                               </div>
-                           </div>
-                        ))
-                     ) : (
-                        <>
-                           {visibleStudents.map((s) => {
-                              const isPresent = attendanceStatus[s.uid] ?? true;
-                              return (
-                                 <div
-                                    key={s.uid}
-                                    onClick={() => handleMark(s.uid)}
-                                    className={`relative bg-white pt-5 pb-4 px-4 rounded-2xl shadow-sm border transition-all duration-300 active:scale-[0.97] flex items-center justify-between group overflow-hidden ${!isPresent ? 'border-rose-100 bg-rose-50/20' : 'border-slate-100 hover:border-emerald-200'}`}
-                                 >
-                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${isPresent ? 'bg-emerald-400' : 'bg-rose-400'}`}></div>
-
-                                    <div className="flex-1 min-w-0 mr-4">
-                                       <div className="flex items-center gap-2 mb-1.5">
-                                          <span className={`inline-flex items-center justify-center text-[10px] font-black px-2 py-0.5 rounded-lg tracking-tight ${isPresent ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                             SR NO: {s.studentData?.rollNo || '#'}
-                                          </span>
-                                          <span className="text-[10px] font-bold text-slate-900 font-mono tracking-tighter opacity-100 truncate">{s.studentData?.enrollmentId}</span>
-                                       </div>
-                                       <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1">{s.displayName}</h4>
-                                       <div className="flex items-center gap-1.5">
-                                          <div className={`h-1.5 w-1.5 rounded-full ${isPresent ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-                                          <span className={`text-[10px] font-black uppercase tracking-widest ${isPresent ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                             {isPresent ? 'Present' : 'Absent'}
-                                          </span>
-                                       </div>
-                                    </div>
-
-                                    <div onClick={e => e.stopPropagation()}>
-                                       <ToggleSwitch
-                                          checked={isPresent}
-                                          onChange={() => handleMark(s.uid)}
-                                       />
-                                    </div>
-                                 </div>
-                              );
-                           })}
-                           {visibleStudents.length === 0 && (
-                              <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
-                                 No students found.
-                              </div>
-                           )}
-                        </>
-                     )}
-                  </div>
-
-                  {/* Desktop Student List (Table) */}
-                  <div className="hidden md:block bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-                     <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                           <tr>
-                              <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider w-20">S.No</th>
-                              <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider">Student Details</th>
-                              <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider text-center w-32">Status</th>
-                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                           {loadingStudents ? (
-                              // Table Skeletons
-                              Array.from({ length: 8 }).map((_, i) => (
-                                 <tr key={i}>
-                                    <td className="py-3 px-4"><Skeleton width={30} height={16} /></td>
-                                    <td className="py-3 px-4">
-                                       <div className="space-y-1">
-                                          <Skeleton width={120} height={16} />
-                                          <Skeleton width={80} height={12} />
-                                       </div>
-                                    </td>
-                                    <td className="py-3 px-4 flex justify-center"><Skeleton width={48} height={24} className="rounded-full" /></td>
-                                 </tr>
-                              ))
-                           ) : (
-                              <>
-                                 {visibleStudents.map((s) => (
-                                    <tr key={s.uid} className={`hover:bg-slate-50 transition-colors ${!attendanceStatus[s.uid] ? 'bg-red-50/30' : ''}`}>
-                                       <td className="py-3 px-4 text-slate-900 font-mono text-sm">{s.studentData?.rollNo || '-'}</td>
-                                       <td className="py-3 px-4">
-                                          <div className="font-semibold text-slate-900 text-sm">{s.displayName}</div>
-                                          <div className="text-xs text-slate-900 font-mono">{s.studentData?.enrollmentId}</div>
-                                       </td>
-                                       <td className="py-3 px-4 text-center">
-                                          <div className="flex justify-center">
-                                             <ToggleSwitch
-                                                checked={attendanceStatus[s.uid] ?? true}
-                                                onChange={() => handleMark(s.uid)}
-                                             />
-                                          </div>
-                                       </td>
-                                    </tr>
-                                 ))}
-                                 {visibleStudents.length === 0 && (
-                                    <tr><td colSpan={3} className="p-8 text-center text-slate-400">No students found in selected batches.</td></tr>
-                                 )}
-                              </>
-                           )}
-                        </tbody>
-                     </table>
-                  </div>
-
-                  {/* Premium Footer - Now scrolls with content to avoid obstruction */}
-                  <div className="mt-8 mb-20 bg-white/80 backdrop-blur-xl border border-slate-100 p-6 rounded-[2.5rem] shadow-xl shadow-indigo-100/20 flex flex-col md:flex-row justify-between items-center gap-6">
-                     <div className="flex flex-col items-center md:items-start">
-                        <div className="flex items-baseline gap-1">
-                           <span className="text-2xl font-black text-indigo-600 leading-none">{visibleStudents.filter(s => attendanceStatus[s.uid]).length}</span>
-                           <span className="text-[12px] font-black text-slate-400 uppercase tracking-tighter">/ {visibleStudents.length} Students</span>
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Marked Present</span>
-                     </div>
-
-                     <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-                        {saveMessage && (
-                           <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full animate-in fade-in slide-in-from-right-2">
-                              <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                              <span className="text-[10px] font-black uppercase tracking-tight">{saveMessage.includes('Sync') ? 'Synced' : 'Saved'}</span>
                            </div>
                         )}
-                        <button
-                           onClick={handleSaveClick}
-                           disabled={isSaving || selectedSlots.length === 0}
-                           className={`h-14 px-10 w-full md:w-auto rounded-3xl font-black text-xs uppercase tracking-[0.1em] shadow-2xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 ${isEditMode ? 'bg-orange-600 text-white shadow-orange-200' : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700'}`}
-                        >
-                           {isSaving ? (
-                              <div className="flex items-center gap-2">
-                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                 <span>Processing...</span>
+                        {loadingStudents ? (
+                           Array.from({ length: 5 }).map((_, i) => (
+                              <div key={i} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
+                                 <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3 w-full">
+                                       <Skeleton variant="circular" width={32} height={32} />
+                                       <div className="space-y-1 w-full max-w-[150px]">
+                                          <Skeleton width="80%" height={16} />
+                                          <Skeleton width="40%" height={12} />
+                                       </div>
+                                    </div>
+                                    <Skeleton width={48} height={24} className="rounded-full" />
+                                 </div>
                               </div>
-                           ) : (
-                              <>
-                                 <Save className="h-5 w-5" />
-                                 <span>{isEditMode ? 'Update Record' : 'Save Attendance'}</span>
-                              </>
+                           ))
+                        ) : (
+                           <>
+                              {visibleStudents.map((s) => {
+                                 const isPresent = attendanceStatus[s.uid] ?? true;
+                                 return (
+                                    <div
+                                       key={s.uid}
+                                       onClick={() => handleMark(s.uid)}
+                                       className={`relative bg-white pt-5 pb-4 px-4 rounded-2xl shadow-sm border transition-all duration-300 active:scale-[0.97] flex items-center justify-between group overflow-hidden ${!isPresent ? 'border-rose-100 bg-rose-50/20' : 'border-slate-100 hover:border-emerald-200'}`}
+                                    >
+                                       <div className={`absolute left-0 top-0 bottom-0 w-1 ${isPresent ? 'bg-emerald-400' : 'bg-rose-400'}`}></div>
+
+                                       <div className="flex-1 min-w-0 mr-4">
+                                          <div className="flex items-center gap-2 mb-1.5">
+                                             <span className={`inline-flex items-center justify-center text-[10px] font-black px-2 py-0.5 rounded-lg tracking-tight ${isPresent ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                SR NO: {s.studentData?.rollNo || '#'}
+                                             </span>
+                                             <span className="text-[10px] font-bold text-slate-900 font-mono tracking-tighter opacity-100 truncate">{s.studentData?.enrollmentId}</span>
+                                          </div>
+                                          <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1">{s.displayName}</h4>
+                                          <div className="flex items-center gap-1.5">
+                                             <div className={`h-1.5 w-1.5 rounded-full ${isPresent ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+                                             <span className={`text-[10px] font-black uppercase tracking-widest ${isPresent ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {isPresent ? 'Present' : 'Absent'}
+                                             </span>
+                                          </div>
+                                       </div>
+
+                                       <div onClick={e => e.stopPropagation()}>
+                                          <ToggleSwitch
+                                             checked={isPresent}
+                                             onChange={() => handleMark(s.uid)}
+                                          />
+                                       </div>
+                                    </div>
+                                 );
+                              })}
+                              {visibleStudents.length === 0 && (
+                                 <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                    No students found.
+                                 </div>
+                              )}
+                           </>
+                        )}
+                     </div>
+
+                     {/* Desktop Student List (Table) */}
+                     <div className={`hidden md:block bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden relative transition-all duration-300 ${selectedSlots.length === 0 ? 'opacity-40 grayscale-[0.5] pointer-events-none select-none' : ''}`}>
+                        {selectedSlots.length === 0 && (
+                           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-10 text-center pointer-events-none">
+                              <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl space-y-4">
+                                 <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-500">
+                                    <RefreshCw className="h-8 w-8 animate-spin-slow" />
+                                 </div>
+                                 <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Marking Register Locked</p>
+                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Select at least one slot<br />above to unlock students</p>
+                              </div>
+                           </div>
+                        )}
+                        <table className="w-full text-left border-collapse">
+                           <thead className="bg-slate-50 border-b border-slate-200">
+                              <tr>
+                                 <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider w-20">S.No</th>
+                                 <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider">Student Details</th>
+                                 <th className="py-3 px-4 text-xs font-bold text-slate-900 uppercase tracking-wider text-center w-32">Status</th>
+                              </tr>
+                           </thead>
+                           <tbody className="divide-y divide-slate-100">
+                              {loadingStudents ? (
+                                 Array.from({ length: 8 }).map((_, i) => (
+                                    <tr key={i}>
+                                       <td className="py-3 px-4"><Skeleton width={30} height={16} /></td>
+                                       <td className="py-3 px-4">
+                                          <div className="space-y-1">
+                                             <Skeleton width={120} height={16} />
+                                             <Skeleton width={80} height={12} />
+                                          </div>
+                                       </td>
+                                       <td className="py-3 px-4 flex justify-center"><Skeleton width={48} height={24} className="rounded-full" /></td>
+                                    </tr>
+                                 ))
+                              ) : (
+                                 <>
+                                    {visibleStudents.map((s) => (
+                                       <tr key={s.uid} className={`hover:bg-slate-50 transition-colors ${!attendanceStatus[s.uid] ? 'bg-red-50/30' : ''}`}>
+                                          <td className="py-3 px-4 text-slate-900 font-mono text-sm">{s.studentData?.rollNo || '-'}</td>
+                                          <td className="py-3 px-4">
+                                             <div className="font-semibold text-slate-900 text-sm">{s.displayName}</div>
+                                             <div className="text-xs text-slate-900 font-mono">{s.studentData?.enrollmentId}</div>
+                                          </td>
+                                          <td className="py-3 px-4 text-center">
+                                             <div className="flex justify-center">
+                                                <ToggleSwitch
+                                                   checked={attendanceStatus[s.uid] ?? true}
+                                                   onChange={() => handleMark(s.uid)}
+                                                />
+                                             </div>
+                                          </td>
+                                       </tr>
+                                    ))}
+                                    {visibleStudents.length === 0 && (
+                                       <tr><td colSpan={3} className="p-8 text-center text-slate-400">No students found in selected batches.</td></tr>
+                                    )}
+                                 </>
+                              )}
+                           </tbody>
+                        </table>
+                     </div>
+
+                     {/* Premium Footer */}
+                     <div className="mt-8 mb-20 bg-white/80 backdrop-blur-xl border border-slate-100 p-6 rounded-[2.5rem] shadow-xl shadow-indigo-100/20 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div className="flex flex-col items-center md:items-start">
+                           <div className="flex items-baseline gap-1">
+                              <span className="text-2xl font-black text-indigo-600 leading-none">{visibleStudents.filter(s => attendanceStatus[s.uid]).length}</span>
+                              <span className="text-[12px] font-black text-slate-400 uppercase tracking-tighter">/ {visibleStudents.length} Students</span>
+                           </div>
+                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Marked Present</span>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+                           {saveMessage && (
+                              <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full animate-in fade-in slide-in-from-right-2">
+                                 <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                                 <span className="text-[10px] font-black uppercase tracking-tight">{saveMessage.includes('Sync') ? 'Synced' : 'Saved'}</span>
+                              </div>
                            )}
-                        </button>
+                           <button
+                              onClick={handleSaveClick}
+                              disabled={isSaving || selectedSlots.length === 0}
+                              className={`h-14 px-10 w-full md:w-auto rounded-3xl font-black text-xs uppercase tracking-[0.1em] shadow-2xl transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 ${isEditMode ? 'bg-orange-600 text-white shadow-orange-200' : 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700'}`}
+                           >
+                              {isSaving ? (
+                                 <div className="flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <span>Processing...</span>
+                                 </div>
+                              ) : (
+                                 <>
+                                    <Save className="h-5 w-5" />
+                                    <span>{isEditMode ? 'Update Record' : 'Save Attendance'}</span>
+                                 </>
+                              )}
+                           </button>
+                        </div>
                      </div>
                   </div>
                </div>
