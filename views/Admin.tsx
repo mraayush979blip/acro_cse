@@ -3,7 +3,7 @@ import XLSX from 'xlsx-js-style';
 import { db } from '../services/db';
 import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark, SystemSettings } from '../types';
 import { Card, Button, Input, Select, Modal, FileUploader } from '../components/UI';
-import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings, GripVertical } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
 const SystemManagement: React.FC = () => {
@@ -451,6 +451,11 @@ const StudentManagement: React.FC = () => {
   const [isEditingStudent, setIsEditingStudent] = useState(false);
   const [editStudentForm, setEditStudentForm] = useState({ uid: '', name: '', mobile: '', enroll: '', rollNo: '' });
 
+  // Drag and Drop State
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
+
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -664,6 +669,53 @@ const StudentManagement: React.FC = () => {
     setIsEditingStudent(true);
   };
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+    // Create a ghost image if needed, or just set data
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIdx(index);
+  };
+
+  const handleDragEnd = async () => {
+    if (draggedIdx === null || dragOverIdx === null || draggedIdx === dragOverIdx) {
+      setDraggedIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+
+    // Work on a copy of the current sorted state
+    const currentSorted = [...students].sort((a, b) => 
+      (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })
+    );
+
+    const reordered = [...currentSorted];
+    const [movedItem] = reordered.splice(draggedIdx, 1);
+    reordered.splice(dragOverIdx, 0, movedItem);
+
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+    setIsUpdatingOrder(true);
+
+    try {
+      const orderedIds = reordered.map(s => s.uid);
+      // This now handles class-wide re-indexing automatically
+      await db.updateRosterOrder(branchId!, orderedIds);
+      
+      // Refresh students for this batch
+      const fresh = await db.getStudents(branchId!, batchId!);
+      setStudents(fresh);
+    } catch (err) {
+      console.error("Order update failed:", err);
+    } finally {
+      setIsUpdatingOrder(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     const itemType = level === 'branches' ? 'class' : level === 'batches' ? 'batch' : 'student';
     if (!window.confirm(`Are you sure you want to delete this ${itemType}? This action cannot be undone.`)) return;
@@ -870,10 +922,46 @@ const StudentManagement: React.FC = () => {
               </div>
             ))}
           </div>
-          {/* Desktop table */}
           <table className="hidden md:table w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Enrollment</th><th className="p-2 text-slate-900">Sr No</th><th className="p-2 text-slate-900">Name</th><th className="p-2 text-slate-900">Mobile No</th><th className="p-2 text-right text-slate-900">Actions</th></tr></thead>
-            <tbody>{students.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => (<tr key={s.uid} className="border-b group"><td className="p-2 font-mono text-slate-900">{s.studentData?.enrollmentId}</td><td className="p-2 font-mono text-slate-900">{s.studentData?.rollNo}</td><td className="p-2 text-slate-900">{s.displayName}</td><td className="p-2 text-slate-900 font-mono">{s.studentData?.mobileNo}</td><td className="p-2 text-right"><button onClick={() => handleSelectStudent(s)} className="text-indigo-500 mr-2 opacity-0 group-hover:opacity-100" title="View Details"><Eye className="h-4 w-4" /></button><button onClick={() => startEditStudent(s)} className="text-blue-500 mr-2 opacity-0 group-hover:opacity-100" title="Edit Student"><Edit2 className="h-4 w-4" /></button><button onClick={() => handleDelete(s.uid)} className="text-red-500 opacity-0 group-hover:opacity-100" title="Delete Student"><Trash2 className="h-4 w-4" /></button></td></tr>))}</tbody>
+            <thead className="bg-slate-50 border-b">
+              <tr>
+                <th className="p-2 text-slate-900">Enrollment</th>
+                <th className="p-2 text-slate-900 group">
+                   Sr No {isUpdatingOrder && <span className="ml-2 inline-block animate-spin h-3 w-3 border-2 border-indigo-500 border-t-transparent rounded-full align-middle"></span>}
+                </th>
+                <th className="p-2 text-slate-900">Name</th>
+                <th className="p-2 text-slate-900">Mobile No</th>
+                <th className="p-2 text-right text-slate-900">Actions</th>
+              </tr>
+            </thead>
+            <tbody>{[...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map((s, idx) => (
+              <tr 
+                key={s.uid} 
+                draggable={!isUpdatingOrder}
+                onDragStart={(e) => handleDragStart(e, idx)}
+                onDragOver={(e) => handleDragOver(e, idx)}
+                onDragEnd={handleDragEnd}
+                className={`border-b group transition-all duration-200 ${dragOverIdx === idx ? 'bg-indigo-50 border-t-2 border-t-indigo-400' : 'bg-white'} ${draggedIdx === idx ? 'opacity-40 grayscale' : ''}`}
+              >
+                <td className="p-2 font-mono text-slate-900 selectable">{s.studentData?.enrollmentId}</td>
+                <td className="p-2 font-mono text-slate-900 selectable">{s.studentData?.rollNo}</td>
+                <td className="p-2 text-slate-900 selectable">{s.displayName}</td>
+                <td className="p-2 text-slate-900 font-mono selectable">{s.studentData?.mobileNo}</td>
+                <td className="p-2 text-right">
+                  <div className="flex justify-end items-center gap-1">
+                    <button 
+                      className="cursor-grab active:cursor-grabbing p-1 text-slate-300 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all"
+                      title="Drag to reorder"
+                    >
+                      <GripVertical className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => handleSelectStudent(s)} className="text-indigo-500 p-1 opacity-0 group-hover:opacity-100" title="View Details"><Eye className="h-4 w-4" /></button>
+                    <button onClick={() => startEditStudent(s)} className="text-blue-500 p-1 opacity-0 group-hover:opacity-100" title="Edit Student"><Edit2 className="h-4 w-4" /></button>
+                    <button onClick={() => handleDelete(s.uid)} className="text-red-500 p-1 opacity-0 group-hover:opacity-100" title="Delete Student"><Trash2 className="h-4 w-4" /></button>
+                  </div>
+                </td>
+              </tr>
+            ))}</tbody>
           </table>
 
           {/* Edit Student Modal */}

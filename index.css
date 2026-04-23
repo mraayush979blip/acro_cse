@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+@layer base {
+  body {
+    /* Disable selection globally for a native app feel */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Explicitly allow selection for data, inputs, and code-like text */
+  .selectable,
+  .font-mono,
+  input, 
+  textarea, 
+  [contenteditable="true"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
+  /* Ensure buttons and icons are never selectable even if inside a selectable container */
+  button, 
+  svg, 
+  .lucide {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+}

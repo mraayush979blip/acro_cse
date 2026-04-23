@@ -85,6 +85,8 @@ interface IDataService {
   ping: () => Promise<number>;
   getDeepStats: () => Promise<Record<string, { count: number; size: string }>>;
   getStorageStats: () => Promise<{ consumed: string; total: string; percent: number }>;
+  reindexBranchStudents: (branchId: string) => Promise<void>;
+  updateRosterOrder: (branchId: string, orderedStudentIds: string[]) => Promise<void>;
 }
 
 // --- Supabase Implementation ---
@@ -332,6 +334,11 @@ class SupabaseService implements IDataService {
     }).eq('id', uid);
 
     if (error) throw error;
+    
+    if (data.studentData?.branchId) {
+       await this.reindexBranchStudents(data.studentData.branchId);
+    }
+
     this._invalidate('students_*');
     if (mobileNo) {
       try {
@@ -465,12 +472,14 @@ class SupabaseService implements IDataService {
     let success = 0;
     let failed = 0;
     const errors: string[] = [];
+    const branchIdsToReindex = new Set<string>();
 
     const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
     let count = 0;
     for (const s of students) {
       count++;
+      if (s.studentData?.branchId) branchIdsToReindex.add(s.studentData.branchId);
       let retries = 5;
       let added = false;
       while (retries > 0 && !added) {
@@ -478,41 +487,39 @@ class SupabaseService implements IDataService {
           await this.createStudent(s);
           success++;
           added = true;
-          await delay(500); // Small delay to prevent rate limiting
+          await delay(500); 
         } catch (e: any) {
-          if (e.status === 429 || e.message?.includes('rate limit') || e.message?.includes('Too Many Requests')) {
+          if (e.status === 429 || e.message?.includes('rate limit')) {
             retries--;
-            if (retries > 0) {
-              await delay(3000); // Wait 3 seconds and retry
-            } else {
-              failed++;
-              errors.push(`${s.displayName}: Rate limit exceeded.`);
-            }
+            if (retries > 0) await delay(3000);
+            else { failed++; errors.push(`${s.displayName}: Rate limit exceeded.`); }
           } else {
             failed++;
             errors.push(`${s.displayName}: ${e.message}`);
-            break; // Don't retry on other errors (like duplicate email)
+            break;
           }
         }
       }
-      if (onProgress) {
-        onProgress(count, students.length);
-      }
+      if (onProgress) onProgress(count, students.length);
+    }
+    
+    for (const bid of Array.from(branchIdsToReindex)) {
+       await this.reindexBranchStudents(bid);
     }
     return { success, failed, errors };
   }
 
   async deleteUser(uid: string): Promise<void> {
-    // Try to delete entirely from auth.users (which cascades to profiles, attendance, etc) via RPC
+    const { data: profile } = await supabase.from('profiles').select('branch_id, role').eq('id', uid).single();
     const { error: rpcError } = await supabase.rpc('admin_delete_user', { target_user_id: uid });
     
-    // If the RPC isn't deployed yet or fails, fallback to standard profile deletion
     if (rpcError) {
-      console.warn("admin_delete_user RPC failed, falling back to profile deletion", rpcError);
-      const { error: assignError } = await supabase.from('assignments').delete().eq('faculty_id', uid);
-      if (assignError) throw assignError;
-      const { error: profError } = await supabase.from('profiles').delete().eq('id', uid);
-      if (profError) throw profError;
+      await supabase.from('assignments').delete().eq('faculty_id', uid);
+      await supabase.from('profiles').delete().eq('id', uid);
+    }
+    
+    if (profile?.role === 'STUDENT' && profile.branch_id) {
+       await this.reindexBranchStudents(profile.branch_id);
     }
     
     this._invalidate('students_*');
@@ -1101,12 +1108,143 @@ class SupabaseService implements IDataService {
     const limitMB = 500;
     const percent = Math.min(99, (Number(consumedMB) / limitMB) * 100);
 
-    return {
-      consumed: `${consumedMB} MB`,
-      total: `${limitMB} MB`,
-      percent: parseFloat(percent.toFixed(1))
-    };
-  }
+      return {
+         consumed: `${consumedMB} MB`,
+         total: `${limitMB} MB`,
+         percent: parseFloat(percent.toFixed(1))
+      };
+   }
+
+   async reindexBranchStudents(branchId: string): Promise<void> {
+      try {
+         // 1. Fetch batches to determine sequence order
+         const { data: batches, error: bError } = await supabase.from('batches').select('id, name').eq('branch_id', branchId);
+         if (bError) throw bError;
+
+         const sortedBatches = (batches || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+         const batchRankMap: Record<string, number> = {};
+         sortedBatches.forEach((b, i) => batchRankMap[b.id] = i);
+
+         // 2. Fetch all students in this branch
+         const { data: students, error: sError } = await supabase.from('profiles')
+            .select('id, batch_id, roll_no, enrollment_id')
+            .eq('role', UserRole.STUDENT)
+            .eq('branch_id', branchId);
+         if (sError) throw sError;
+         if (!students || students.length === 0) return;
+
+         // 3. Define the correct order: Batch Name (Asc) -> Roll No (Asc) -> Enrollment ID (Asc)
+         const masterList = [...students].sort((a, b) => {
+            const rankA = batchRankMap[a.batch_id!] ?? 999;
+            const rankB = batchRankMap[b.batch_id!] ?? 999;
+            if (rankA !== rankB) return rankA - rankB;
+            
+            // Prioritize existing roll_no, then enrollment_id
+            const rA = parseInt(a.roll_no || '9999');
+            const rB = parseInt(b.roll_no || '9999');
+            if (rA !== rB) return rA - rB;
+            
+            return (a.enrollment_id || '').localeCompare(b.enrollment_id || '');
+         });
+
+         // 4. Update roll numbers that have changed
+         const updates = [];
+         for (let i = 0; i < masterList.length; i++) {
+            const expectedRollNo = (i + 1).toString();
+            if (masterList[i].roll_no !== expectedRollNo) {
+               updates.push(
+                  supabase.from('profiles').update({ roll_no: expectedRollNo }).eq('id', masterList[i].id)
+               );
+            }
+         }
+
+         if (updates.length > 0) {
+            // Process in chunks of 20 to avoid exhausting connections/timeouts
+            for (let i = 0; i < updates.length; i += 20) {
+               await Promise.all(updates.slice(i, i + 20));
+            }
+         }
+         this._invalidate(`students_${branchId}_*`);
+      } catch (err) {
+         console.error("Re-indexing failed:", err);
+      }
+   }
+
+   async updateRosterOrder(branchId: string, orderedStudentIds: string[]): Promise<void> {
+      if (orderedStudentIds.length === 0) return;
+      try {
+         // 1. Fetch batches for this branch to understand the sequence order (e.g. Batch A then Batch B)
+         const { data: batches } = await supabase.from('batches').select('id, name').eq('branch_id', branchId);
+         const sortedBatches = (batches || []).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+         const batchRankMap: Record<string, number> = {};
+         sortedBatches.forEach((b, i) => batchRankMap[b.id] = i);
+
+         // 2. Fetch all students in the branch to maintain global continuity
+         const { data: allStudents } = await supabase.from('profiles')
+            .select('id, batch_id, roll_no, display_name')
+            .eq('role', UserRole.STUDENT)
+            .eq('branch_id', branchId);
+         
+         if (!allStudents || allStudents.length === 0) return;
+
+         // 3. Identify and isolate the segment being reordered
+         const movedIdsSet = new Set(orderedStudentIds);
+         const studentsMap = new Map(allStudents.map(s => [s.id, s]));
+         
+         // The batch currently being edited
+         const targetedBatchId = allStudents.find(s => s.id === orderedStudentIds[0])?.batch_id;
+         const targetRank = batchRankMap[targetedBatchId!] ?? 999;
+
+         // 4. Sort students NOT participating in the drag-drop (other batches or unselected entries)
+         const otherStudents = allStudents.filter(s => !movedIdsSet.has(s.id)).sort((a, b) => {
+            const rA = batchRankMap[a.batch_id!] ?? 999;
+            const rB = batchRankMap[b.batch_id!] ?? 999;
+            if (rA !== rB) return rA - rB;
+            
+            const nrA = parseInt(a.roll_no || '9999');
+            const nrB = parseInt(b.roll_no || '9999');
+            if (nrA !== nrB) return nrA - nrB;
+            
+            return (a.enrollment_id || '').localeCompare(b.enrollment_id || '');
+         });
+
+         // 5. Construct the global Master List: Earlier Batches -> Custom Ordered Batch -> Later Batches
+         const masterList: any[] = [];
+         
+         // Add students from earlier batches
+         otherStudents.filter(s => (batchRankMap[s.batch_id!] ?? 999) < targetRank).forEach(s => masterList.push(s));
+         
+         // Add the newly ordered students for the current batch
+         orderedStudentIds.forEach(id => {
+            const stu = studentsMap.get(id);
+            if (stu) masterList.push(stu);
+         });
+
+         // Add students from later batches
+         otherStudents.filter(s => (batchRankMap[s.batch_id!] ?? 999) > targetRank).forEach(s => masterList.push(s));
+
+         // 6. Assign continuous Serial Numbers 1...N
+         const updates = [];
+         for (let i = 0; i < masterList.length; i++) {
+            const expectedRollNo = (i + 1).toString();
+            if (masterList[i].roll_no !== expectedRollNo) {
+               updates.push(
+                  supabase.from('profiles').update({ roll_no: expectedRollNo }).eq('id', masterList[i].id)
+               );
+            }
+         }
+
+         // 7. Perform batch updates
+         if (updates.length > 0) {
+            for (let i = 0; i < updates.length; i += 25) {
+               await Promise.all(updates.slice(i, i + 25));
+            }
+         }
+         this._invalidate(`students_${branchId}_*`);
+      } catch (err) {
+         console.error("Custom re-order failed:", err);
+      }
+   }
 }
 
 // --- MOCK Implementation (Unchanged) ---
@@ -1571,6 +1709,42 @@ class MockService implements IDataService {
       total: "512 MB",
       percent: parseFloat((Number(consumedMB) / 5.12).toFixed(1))
     };
+  }
+
+  async reindexBranchStudents(branchId: string): Promise<void> {
+    const users = this.load('ams_users', SEED_USERS) as User[];
+    const branchStudents = users.filter(u => u.studentData?.branchId === branchId);
+
+    const batches = this.load('ams_batches', SEED_BATCHES) as Batch[];
+    const branchBatches = batches.filter(b => b.branchId === branchId).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const batchOrder: Record<string, number> = {};
+    branchBatches.forEach((b, i) => batchOrder[b.id] = i);
+
+    branchStudents.sort((a, b) => {
+      const rA = batchOrder[a.studentData?.batchId ?? ''] ?? 999;
+      const rB = batchOrder[b.studentData?.batchId ?? ''] ?? 999;
+      if (rA !== rB) return rA - rB;
+      return a.displayName.localeCompare(b.displayName);
+    });
+
+    branchStudents.forEach((s, i) => {
+      if (s.studentData) s.studentData.rollNo = (i + 1).toString();
+    });
+
+    localStorage.setItem('ams_users', JSON.stringify(users));
+  }
+
+  async updateRosterOrder(branchId: string, orderedStudentIds: string[]): Promise<void> {
+    const users = this.load('ams_users', SEED_USERS) as User[];
+    const idMap = new Map(orderedStudentIds.map((id, i) => [id, (i + 1).toString()]));
+
+    users.forEach(u => {
+      if (u.studentData?.branchId === branchId && idMap.has(u.uid)) {
+        u.studentData.rollNo = idMap.get(u.uid);
+      }
+    });
+
+    localStorage.setItem('ams_users', JSON.stringify(users));
   }
 }
 

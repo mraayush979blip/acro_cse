@@ -2101,7 +2101,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                              </span>
                                              <span className="text-[10px] font-bold text-slate-900 font-mono tracking-tighter opacity-100 truncate">{s.studentData?.enrollmentId}</span>
                                           </div>
-                                          <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1">{s.displayName}</h4>
+                                          <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1 selectable">{s.displayName}</h4>
                                           <div className="flex items-center gap-1.5">
                                              <div className={`h-1.5 w-1.5 rounded-full ${isPresent ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
                                              <span className={`text-[10px] font-black uppercase tracking-widest ${isPresent ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -2382,7 +2382,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                              <div className="h-1 w-1 bg-slate-200 rounded-full"></div>
                                              <span className="text-[10px] font-bold text-slate-900 font-mono tracking-tighter opacity-100 truncate">{s.studentData?.enrollmentId}</span>
                                           </div>
-                                          <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1.5 group-hover:text-indigo-600 transition-colors uppercase">{s.displayName}</h4>
+                                          <h4 className="font-bold text-slate-800 text-sm tracking-tight leading-none mb-1.5 group-hover:text-indigo-600 transition-colors uppercase selectable">{s.displayName}</h4>
                                           <div className="flex items-center gap-4">
                                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                 <div className={`h-full rounded-full transition-all duration-1000 ${pct < 75 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }}></div>
@@ -2450,7 +2450,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                        rows.push(
                                           <tr key={s.uid} className="hover:bg-indigo-50/30 transition-colors">
                                              <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
-                                             <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase">{s.displayName}</td>
+                                             <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase selectable">{s.displayName}</td>
                                              <td className="p-3 font-mono text-slate-500 text-xs tracking-tighter">{s.studentData?.enrollmentId || '-'}</td>
                                              <td className="p-3 text-center text-slate-400 font-black text-[10px]">{batchName}</td>
                                              <td className="p-3">
@@ -2471,7 +2471,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                        rows.push(
                                           <tr key={s.uid} onClick={() => setViewHistoryStudent(s)} className="hover:bg-indigo-50/50 cursor-pointer transition-colors group">
                                              <td className="p-3 font-mono text-slate-400 text-xs tracking-tighter">{s.studentData?.rollNo}</td>
-                                             <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase group-hover:text-indigo-600 transition-colors">{s.displayName}</td>
+                                             <td className="p-3 font-bold text-slate-700 text-sm tracking-tight uppercase group-hover:text-indigo-600 transition-colors selectable">{s.displayName}</td>
                                              <td className="p-3 font-mono text-slate-500 text-xs tracking-tighter">{s.studentData?.enrollmentId || '-'}</td>
                                              <td className="p-3 text-center text-slate-400 font-bold text-xs">{total}</td>
                                              <td className="p-3 text-center text-emerald-600 font-bold text-xs">{present}</td>
@@ -2539,7 +2539,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                  {visibleStudents.map(s => (
                                     <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
                                        <td className="py-4 px-6">
-                                          <div className="font-bold text-slate-800 text-sm uppercase tracking-tight">{s.displayName}</div>
+                                          <div className="font-bold text-slate-800 text-sm uppercase tracking-tight selectable">{s.displayName}</div>
                                           <div className="text-[10px] font-bold text-slate-900 font-mono">{s.studentData?.enrollmentId} | Sr No: {s.studentData?.rollNo || '#'}</div>
                                        </td>
                                        <td className="py-4 px-6 text-right">
