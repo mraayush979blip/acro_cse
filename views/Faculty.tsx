@@ -31,20 +31,6 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; disabled?
    </button>
 );
 
-const InfoButton: React.FC<{ text: string }> = ({ text }) => (
-   <button
-      type="button"
-      onClick={(e) => {
-         e.stopPropagation();
-         alert(text);
-      }}
-      className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white hover:bg-blue-700 transition-colors ml-1.5 align-middle shadow-md shadow-blue-200 shrink-0"
-      aria-label="More information"
-   >
-      i
-   </button>
-);
-
 const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData: any }> = ({ branchId, facultyUser, metaData }) => {
    /*
     * Coordinator extra-lecture marking UX notes:
@@ -129,7 +115,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
       if (selectedSessions.length === 1) {
          const slot = selectedSessions[0];
          const existing = history.filter(r => r.date === attendanceDate && r.lectureSlot === slot);
-         
+
          if (existing.length > 0) {
             const newStatus: Record<string, boolean> = {};
             existing.forEach(r => { if (r.isPresent) newStatus[r.studentId] = true; });
@@ -141,10 +127,10 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
             }
          }
       } else if (selectedSessions.length === 0) {
-          // If clearing slots, and date/branch changed, we should reset
-          if (prevSelectionRef.current.date !== attendanceDate || prevSelectionRef.current.branchId !== branchId) {
-              setStatus({});
-          }
+         // If clearing slots, and date/branch changed, we should reset
+         if (prevSelectionRef.current.date !== attendanceDate || prevSelectionRef.current.branchId !== branchId) {
+            setStatus({});
+         }
       }
       prevSelectionRef.current = { date: attendanceDate, branchId };
    }, [attendanceDate, selectedSessions, history, branchId]);
@@ -248,7 +234,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                <div className="space-y-1">
                   <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/10 mb-2">
                      <Layers className="h-3 w-3 text-indigo-300" />
-                     <span className="text-[10px] font-black text-white/90 uppercase tracking-widest">Coordinator View</span>
+                     <span className="text-[10px] font-black text-white/90 uppercase tracking-widest">Coordinator Mode</span>
                   </div>
                   <h2 className="text-3xl font-black text-white tracking-tight uppercase leading-none">Class Control</h2>
                   <p className="text-indigo-200 text-sm font-medium flex items-center gap-1.5 pt-1">
@@ -318,10 +304,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                      <div className="p-2 bg-indigo-50 rounded-xl">
                         <Filter className="h-4 w-4 text-indigo-600" />
                      </div>
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
-                        Search Student
-                        <InfoButton text="Search students by name, ID, or mobile number to see their past attendance." />
-                     </label>
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Search Student</label>
                   </div>
                   <div className="relative">
                      <input
@@ -505,10 +488,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                         <div className="p-2 bg-indigo-50 rounded-xl">
                            <Calendar className="h-4 w-4 text-indigo-600" />
                         </div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
-                           Select Date
-                           <InfoButton text="Select the date for this extra lecture." />
-                        </label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Date</label>
                      </div>
                      <Input
                         type="date"
@@ -525,7 +505,13 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                         </div>
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                            <span>Active Slots (Max 7)</span>
-                           <InfoButton text="Pick the lecture periods (1 to 7). You can choose more than one." />
+                           <span
+                              className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600 cursor-help"
+                              title="Select one or more lecture slots before saving attendance."
+                              aria-label="Slot selection help"
+                           >
+                              ℹ️
+                           </span>
                         </label>
                      </div>
                      <div className="flex flex-wrap gap-2.5">
@@ -557,10 +543,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                      <div className="p-2 bg-indigo-50 rounded-xl">
                         <Filter className="h-4 w-4 text-indigo-600" />
                      </div>
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
-                        Reason for Extra Lecture
-                        <InfoButton text="Write a short reason for this extra class (like 'Extra syllabus')." />
-                     </label>
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reason for Extra Lecture</label>
                   </div>
                   <textarea
                      value={extraReason}
@@ -583,8 +566,8 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                                  <AlertTriangle className="h-5 w-5" />
                               </div>
                               <div>
-                                 <h4 className="text-xs font-black text-amber-900 uppercase tracking-tight">List Locked</h4>
-                                 <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide">Pick a lecture period above to start marking attendance.</p>
+                                 <h4 className="text-xs font-black text-amber-900 uppercase tracking-tight">Register Locked</h4>
+                                 <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide">Choose a lecture slot above to start marking the attendance.</p>
                               </div>
                            </div>
                         </div>
@@ -594,7 +577,6 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                      <div className="space-y-0.5">
                         <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
                            Attendance Register
-                           <InfoButton text="Mark students present or absent. Those marked 'Present' get credit for all selected periods." />
                         </h3>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Students: {students.length}</p>
                      </div>
@@ -630,8 +612,8 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                               <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-500">
                                  <RefreshCw className="h-8 w-8 animate-spin-slow" />
                               </div>
-                              <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Student List Locked</p>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Pick a period above<br/>to show students</p>
+                              <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Marking Register Locked</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Select at least one slot<br />above to unlock students</p>
                            </div>
                         </div>
                      )}
@@ -745,7 +727,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-2">
                   <div className="space-y-0.5">
-                     <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Past Extra Classes</h3>
+                     <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Extra History</h3>
                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Managing records for {metaData.branches[branchId] || branchId}</p>
                   </div>
                   <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
@@ -1126,8 +1108,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
    // 4. Initialize Status / Detect Edit Mode
    // Track previous state to avoid unnecessary resets
-   const prevContextRef = React.useRef<{ date: string, branchId: string, subjectId: string, batchIds: string }>({ 
-      date: '', branchId: '', subjectId: '', batchIds: '' 
+   const prevContextRef = React.useRef<{ date: string, branchId: string, subjectId: string, batchIds: string }>({
+      date: '', branchId: '', subjectId: '', batchIds: ''
    });
 
    useEffect(() => {
@@ -1149,12 +1131,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       };
 
       const contextChanged = currentContext.date !== prevContextRef.current.date ||
-                           currentContext.branchId !== prevContextRef.current.branchId ||
-                           currentContext.subjectId !== prevContextRef.current.subjectId ||
-                           currentContext.batchIds !== prevContextRef.current.batchIds;
+         currentContext.branchId !== prevContextRef.current.branchId ||
+         currentContext.subjectId !== prevContextRef.current.subjectId ||
+         currentContext.batchIds !== prevContextRef.current.batchIds;
 
       const newStatus: Record<string, boolean> = {};
-      
+
       if (existingRecords.length > 0) {
          // Found existing records in DB - Sync UI with DB (Edit Mode)
          visible.forEach(s => {
@@ -1167,7 +1149,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          // No existing records found for this combination
          const wasEditMode = isEditMode;
          setIsEditMode(false);
-         
+
          // Only reset status to "All Present" if:
          // 1. We were switching from a saved record to a blank one (wasEditMode)
          // 2. The whole context (Date/Subject/Batches) has changed
@@ -1178,7 +1160,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          }
          // Otherwise, if we were just marking a new session and added a slot, keep the current marks!
       }
-      
+
       prevContextRef.current = currentContext;
    }, [selectedMarkingBatches, attendanceDate, selectedSlots, allClassRecords, selBranchId, selSubjectId, allBranchStudents]);
 
@@ -1904,10 +1886,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
                <div className="grid grid-cols-2 gap-3">
                   <div className="relative group">
-                     <label className="absolute left-3 top-2 text-[10px] font-black text-indigo-300 uppercase tracking-widest z-10 transition-all group-focus-within:text-white flex items-center">
-                        Class
-                        <InfoButton text="Select the class you want to check." />
-                     </label>
+                     <label className="absolute left-3 top-2 text-[10px] font-black text-indigo-300 uppercase tracking-widest z-10 transition-all group-focus-within:text-white">Class</label>
                      <select
                         value={selBranchId}
                         onChange={e => { setSelection(e.target.value, ''); }}
@@ -1919,10 +1898,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      <ChevronDown className="absolute right-3 bottom-3 h-4 w-4 text-indigo-300 pointer-events-none" />
                   </div>
                   <div className="relative group">
-                     <label className="absolute left-3 top-2 text-[10px] font-black text-indigo-300 uppercase tracking-widest z-10 transition-all group-focus-within:text-white flex items-center">
-                        Subject
-                        <InfoButton text="Select the subject you are teaching now." />
-                     </label>
+                     <label className="absolute left-3 top-2 text-[10px] font-black text-indigo-300 uppercase tracking-widest z-10 transition-all group-focus-within:text-white">Subject</label>
                      <select
                         value={selSubjectId}
                         onChange={e => setSelection(selBranchId, e.target.value)}
@@ -1976,10 +1952,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
                         <div className="grid grid-cols-2 gap-3 mb-4">
                            <div className="space-y-1">
-                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
-                                 Date
-                                 <InfoButton text="Pick the date. It is set to today by default." />
-                              </label>
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</label>
                               <div className="relative">
                                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                                  <input
@@ -1993,10 +1966,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
                            {metaData.subjects[selSubjectId]?.type === 'lab' && (
                               <div className="space-y-1 relative">
-                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center">
-                                 Batches
-                                 <InfoButton text="For labs, select which batches are present." />
-                               </label>
+                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Batches</label>
                                  <button
                                     onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 flex justify-between items-center transition-all active:scale-[0.98]"
@@ -2038,7 +2008,13 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                  <span className="inline-flex items-center gap-1.5">
                                     <span>Lecture Slots</span>
-                                    <InfoButton text="Pick the lecture periods. You can choose more than one for long classes." />
+                                    <span
+                                       className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600 cursor-help"
+                                       title="Select at least one slot before saving attendance."
+                                       aria-label="Slot selection info"
+                                    >
+                                       ℹ️
+                                    </span>
                                  </span>
                               </label>
                               <div className="flex gap-2 scrollbar-none overflow-x-auto pb-1">
@@ -2065,8 +2041,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                     <AlertTriangle className="h-5 w-5" />
                                  </div>
                                  <div>
-                                    <h4 className="text-xs font-black text-amber-900 uppercase tracking-tight">List Locked</h4>
-                                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide">Pick a lecture period above to start marking attendance.</p>
+                                    <h4 className="text-xs font-black text-amber-900 uppercase tracking-tight">Register Locked</h4>
+                                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide">Choose a lecture slot above to start marking the attendance.</p>
                                  </div>
                               </div>
                            </div>
@@ -2086,8 +2062,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                  <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-500">
                                     <RefreshCw className="h-8 w-8 animate-spin-slow" />
                                  </div>
-                                 <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Student List Locked</p>
-                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Pick a period above<br />to show students</p>
+                                 <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Marking Register Locked</p>
+                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Select at least one slot<br />above to unlock students</p>
                               </div>
                            </div>
                         )}
@@ -2160,8 +2136,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                  <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-500">
                                     <RefreshCw className="h-8 w-8 animate-spin-slow" />
                                  </div>
-                                 <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Student List Locked</p>
-                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Pick a period above<br />to show students</p>
+                                 <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Marking Register Locked</p>
+                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Select at least one slot<br />above to unlock students</p>
                               </div>
                            </div>
                         )}
@@ -2262,10 +2238,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                   <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xl shadow-slate-100 mb-6">
                      <div className="flex flex-col gap-4">
                         <div className="flex items-center justify-between px-1">
-                           <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center">
-                              Past Records
-                              <InfoButton text="See all past attendance records for this class and subject." />
-                           </h3>
+                           <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Data Logs</h3>
                            <div className="flex items-center gap-2">
                               {historyFilterDate && (
                                  <button
@@ -2286,32 +2259,26 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            </div>
                         </div>
 
-                         <div className="flex items-center gap-3">
-                            <div className="flex-1 relative">
-                               <label className="absolute left-3 top-2 text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center">
-                                  Check specific date
-                                  <InfoButton text="Show records for only one date." />
-                               </label>
-                               <input
-                                  type="date"
-                                  value={historyFilterDate}
-                                  onChange={e => { setHistoryFilterDate(e.target.value); setHistoryTillDate(''); }}
-                                  className="w-full pl-3 pr-3 pt-5 pb-1.5 bg-slate-50 border border-transparent rounded-2xl text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-100 focus:outline-none transition-all appearance-none"
-                               />
-                               {historyFilterDate && <button onClick={() => setHistoryFilterDate('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"><XCircle className="h-4 w-4" /></button>}
-                            </div>
-                            <div className="flex items-center gap-2">
-                               <InfoButton text="Download this attendance list as a file for your computer." />
-                               <button
-                                  onClick={handleExportCSV}
-                                  className="h-12 px-4 bg-indigo-50 text-indigo-700 rounded-2xl flex items-center gap-2 active:scale-95 transition-all"
-                                  disabled={allClassRecords.length === 0}
-                               >
-                                  <FileDown className="h-5 w-5" />
-                                  <span className="text-[10px] font-black tracking-widest uppercase">Export CSV</span>
-                               </button>
-                            </div>
-                         </div>
+                        <div className="flex items-center gap-3">
+                           <div className="flex-1 relative">
+                              <label className="absolute left-3 top-2 text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Check specific date</label>
+                              <input
+                                 type="date"
+                                 value={historyFilterDate}
+                                 onChange={e => { setHistoryFilterDate(e.target.value); setHistoryTillDate(''); }}
+                                 className="w-full pl-3 pr-3 pt-5 pb-1.5 bg-slate-50 border border-transparent rounded-2xl text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-100 focus:outline-none transition-all appearance-none"
+                              />
+                              {historyFilterDate && <button onClick={() => setHistoryFilterDate('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"><XCircle className="h-4 w-4" /></button>}
+                           </div>
+                           <button
+                              onClick={handleExportCSV}
+                              className="h-12 px-4 bg-indigo-50 text-indigo-700 rounded-2xl flex items-center gap-2 active:scale-95 transition-all"
+                              disabled={allClassRecords.length === 0}
+                           >
+                              <FileDown className="h-5 w-5" />
+                              <span className="text-[10px] font-black tracking-widest uppercase">Export CSV</span>
+                           </button>
+                        </div>
 
                         {showFilters && (
                            <div className="bg-slate-50 p-4 rounded-2xl space-y-4 animate-in slide-in-from-top-2 duration-300">
@@ -2327,10 +2294,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               </div>
 
                               <div className="space-y-1">
-                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 flex items-center">
-                                    Score Range
-                                    <InfoButton text="Find students with low attendance (like below 75%)." />
-                                 </label>
+                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Score Range</label>
                                  <div className="flex gap-2">
                                     <select
                                        value={attendanceOperator}
@@ -2375,7 +2339,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      {(() => {
                         const { batchGroupMap, studentStats } = historyProcessedData;
                         const nodes: React.ReactNode[] = [];
-                        
+
                         batchGroupMap.forEach((batchStudents, batchId) => {
                            const batchName = metaData.batches[batchId] || batchId;
                            nodes.push(
@@ -2538,10 +2502,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
                         <div className="grid grid-cols-2 gap-4">
                            <div className="space-y-1">
-                              <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center">
-                                 Exam Type
-                                 <InfoButton text="Select MST 1, MST 2, or the Remedial exam." />
-                              </label>
+                              <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest">Exam Type</label>
                               <Select
                                  value={midSemType}
                                  onChange={e => setMidSemType(e.target.value as MidSemType)}
@@ -2553,10 +2514,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               </Select>
                            </div>
                            <div className="space-y-1">
-                              <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center">
-                                 Max Marks
-                                 <InfoButton text="Enter the total marks for this test (like 20 or 50)." />
-                              </label>
+                              <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest">Max Marks</label>
                               <Input
                                  type="number"
                                  value={maxMarks}
@@ -2891,10 +2849,7 @@ const CoordinatorMarkingMonitor: React.FC<{ branchId: string; metaData: any }> =
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 px-2">
             <div className="space-y-1">
-               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center">
-                  Faculty Monitor
-                  <InfoButton text="Check which teachers have marked attendance for their subjects today." />
-               </h3>
+               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Faculty Monitor</h3>
                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Real-time status for {date}</p>
             </div>
             <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
