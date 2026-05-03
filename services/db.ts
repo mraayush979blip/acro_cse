@@ -1181,7 +1181,7 @@ class SupabaseService implements IDataService {
 
       // 2. Fetch all students in the branch to maintain global continuity
       const { data: allStudents } = await supabase.from('profiles')
-        .select('id, batch_id, roll_no, display_name')
+        .select('id, batch_id, roll_no, display_name, enrollment_id')
         .eq('role', UserRole.STUDENT)
         .eq('branch_id', branchId);
 
