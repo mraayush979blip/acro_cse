@@ -2221,7 +2221,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               ) : (
                                  <>
                                     <Save className="h-5 w-5" />
-                                    <span>{isEditMode ? 'Update Record' : 'Save Attendance'}</span>
+                                    <span>{isEditMode ? 'Edit Attendance' : 'Save Attendance'}</span>
                                  </>
                               )}
                            </button>
@@ -2619,7 +2619,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          <Modal
             isOpen={showConfirmModal}
             onClose={() => setShowConfirmModal(false)}
-            title={conflictDetails ? "⚠️ ATTENTION: CONFLICT" : (isEditMode ? "Confirm Update" : "Confirm Submission")}
+            title={conflictDetails ? "⚠️ ATTENTION: CONFLICT" : (isEditMode ? "Confirm Edit" : "Confirm Submission")}
          >
             {conflictDetails ? (
                <div className="space-y-4 animate-in fade-in zoom-in duration-200">
