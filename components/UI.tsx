@@ -276,3 +276,62 @@ export const AboutDeveloperModal: React.FC<{ isOpen: boolean; onClose: () => voi
     </div>
   );
 };
+export const ExportProgressModal: React.FC<{ 
+  isOpen: boolean; 
+  progress: number; 
+  status: string;
+}> = ({ isOpen, progress, status }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-300">
+      <div className="w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-8 text-center animate-in zoom-in-95 duration-300">
+        {/* Animated Icon Container */}
+        <div className="flex justify-center mb-8">
+           <div className="relative h-20 w-20 flex items-center justify-center">
+              <div className="absolute inset-0 bg-indigo-500/10 rounded-3xl rotate-12 animate-pulse"></div>
+              <div className="absolute inset-0 bg-indigo-500/5 rounded-3xl -rotate-12"></div>
+              <div className="relative bg-indigo-600 text-white h-16 w-16 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-100">
+                 <Upload className="h-8 w-8 animate-bounce" />
+              </div>
+           </div>
+        </div>
+
+        <h3 className="text-xl font-black text-slate-900 mb-2 tracking-tight">Preparing Report</h3>
+        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-8">{status}</p>
+
+        {/* Progress Bar Container */}
+        <div className="space-y-4 mb-10">
+           <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden p-1 shadow-inner">
+              <div 
+                className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600 rounded-full transition-all duration-300 ease-out shadow-lg shadow-indigo-200"
+                style={{ width: `${progress}%` }}
+              ></div>
+           </div>
+           <div className="flex justify-between items-center px-1">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Processing</span>
+              <span className="text-[11px] font-black text-indigo-600 tabular-nums">{progress}%</span>
+           </div>
+        </div>
+
+        {/* Developer Attribution (Requested) */}
+        <div className="pt-6 border-t border-slate-50">
+           <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em] mb-4">
+              Developed by{' '}
+              <a 
+                href="https://www.linkedin.com/in/aayush-sharma-2013d" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-indigo-400 hover:text-indigo-600 transition-colors"
+              >
+                Aayush Sharma
+              </a>
+           </p>
+           <div className="flex justify-center gap-4 opacity-30 grayscale">
+              <AcropolisLogo className="h-6 w-auto" variant="dashboard" />
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+};

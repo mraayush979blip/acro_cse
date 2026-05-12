@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import XLSX from 'xlsx-js-style';
 import { db } from '../services/db';
-import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark, SystemSettings } from '../types';
-import { Card, Button, Input, Select, Modal, FileUploader } from '../components/UI';
-import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings, GripVertical } from 'lucide-react';
+import { supabase } from '../services/supabase';
+import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark, SystemSettings, MidSemType } from '../types';
+import { Card, Button, Input, Select, Modal, FileUploader, ExportProgressModal } from '../components/UI';
+import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings, GripVertical, FileDown, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
 const SystemManagement: React.FC = () => {
@@ -1588,6 +1589,29 @@ function AttendanceMonitor() {
       }
     };
     load();
+
+    // Live update for the selected date
+    const channel = supabase
+      .channel(`attendance_monitor_${inspectDate}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance',
+          filter: `date=eq.${inspectDate}`
+        },
+        async () => {
+          // Re-fetch only the attendance for that date to keep stats fresh
+          const freshAtt = await db.getDateAttendance(inspectDate);
+          setAttendance(freshAtt);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [inspectDate]);
 
   const stats = React.useMemo(() => {
@@ -1736,6 +1760,8 @@ const ReportManagement: React.FC = () => {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState('');
   const [students, setStudents] = useState<User[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -1752,6 +1778,7 @@ const ReportManagement: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [metaBatches, setMetaBatches] = useState<Record<string, string>>({});
+  const [midSemType, setMidSemType] = useState<MidSemType>('MID_SEM_1');
 
   useEffect(() => {
     db.getBranches().then(setBranches);
@@ -1762,270 +1789,334 @@ const ReportManagement: React.FC = () => {
     setSelectedBranchId(branchId);
     if (!branchId) return;
     setLoading(true);
+    setProgress(15);
+    setStatus('Loading branch master data...');
     try {
       const [allStu, allAtt, fetchedBatches] = await Promise.all([
         db.getStudentsByBranch(branchId),
         db.getBranchAttendance(branchId),
         db.getBatches(branchId)
       ]);
+      setProgress(80);
+      setStatus('Indexing records...');
       setStudents(allStu);
       setAttendance(allAtt);
       
       const batchMap: Record<string, string> = {};
       fetchedBatches.forEach(b => { batchMap[b.id] = b.name; });
       setMetaBatches(batchMap);
+      setProgress(100);
+      setStatus('Ready');
     } finally {
-      setLoading(false);
+      setTimeout(() => {
+        setLoading(false);
+        setProgress(0);
+      }, 500);
     }
   };
 
-  const executeExport = () => {
+  const executeExport = async () => {
     if (!selectedBranchId) return;
+    setLoading(true);
+    setProgress(0);
+    setStatus('Initializing admin report...');
 
-    const exportStart = exportRange === 'CUSTOM' ? exportStartDate : '';
-    const exportEnd = exportRange === 'CUSTOM' ? exportEndDate : '';
-    const recordsToExport = attendance.filter(r => {
-      const inStart = !exportStart || r.date >= exportStart;
-      const inEnd = !exportEnd || r.date <= exportEnd;
-      return inStart && inEnd;
-    });
+    try {
+      await new Promise(r => setTimeout(r, 600));
+      setProgress(10);
+      setStatus('Filtering database records...');
+      await new Promise(r => setTimeout(r, 400));
 
-    if (recordsToExport.length === 0) {
-      alert("No records found in the selected range.");
-      return;
-    }
-
-    const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Branch';
-
-    const regularRecs = recordsToExport.filter(r => {
-      if (r.subjectId === 'sub_extra') return false;
-      const subj = subjects.find(s => s.id === r.subjectId);
-      if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
-      if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
-      return true;
-    });
-    const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
-      const sA = subjects.find(s => s.id === a);
-      const sB = subjects.find(s => s.id === b);
-      const nameA = (sA?.code || '') + (sA?.type || 'theory');
-      const nameB = (sB?.code || '') + (sB?.type || 'theory');
-      return nameA.localeCompare(nameB);
-    });
-
-    const subjectSessionCounts: Record<string, number> = {};
-    uniqueSubjectIds.forEach(sid => {
-      const subjectSessions = new Set(regularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
-      subjectSessionCounts[sid] = subjectSessions;
-    });
-
-    const totalRegularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
-    const subjectHeaders = uniqueSubjectIds.map(sid => {
-      const s = subjects.find(s => s.id === sid);
-      return s ? `${s.code} (${s.type === 'lab' ? 'Lab' : 'Theory'})` : sid;
-    });
-
-    const headerRows = [
-      ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
-      ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
-      [`Attendance Summary Report: ${branchName}`],
-      [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
-      [`Generated: ${new Date().toLocaleString()}`],
-      []
-    ];
-
-    const allBranchStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
-
-    // --- 2. Stats Calculation (Optimized O(N+M)) ---
-    const studentStatsMap = new Map<string, { present: number, total: number }>();
-    regularRecs.forEach(r => {
-      const current = studentStatsMap.get(r.studentId) || { present: 0, total: 0 };
-      studentStatsMap.set(r.studentId, {
-        present: current.present + (r.isPresent ? 1 : 0),
-        total: current.total + 1
+      const exportStart = exportRange === 'CUSTOM' ? exportStartDate : '';
+      const exportEnd = exportRange === 'CUSTOM' ? exportEndDate : '';
+      const recordsToExport = attendance.filter(r => {
+        const inStart = !exportStart || r.date >= exportStart;
+        const inEnd = !exportEnd || r.date <= exportEnd;
+        return inStart && inEnd;
       });
-    });
 
-    const filteredForExport = filterMode === 'FULL' ? allBranchStudents : allBranchStudents.filter(s => {
-      const stats = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
-      const pct = stats.total === 0 ? 0 : (stats.present / stats.total) * 100;
-      if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
-      if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
-      if (attendanceOperator === 'GT') return pct > attendanceThreshold;
-      if (attendanceOperator === 'LT') return pct < attendanceThreshold;
-      return true;
-    });
+      if (recordsToExport.length === 0) {
+        alert("No records found in the selected range.");
+        setLoading(false);
+        return;
+      }
 
-    const studentStats = filteredForExport.map(s => {
-      const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
-      const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
-      const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
-      const totalSessions = studentRegularRecs.length;
-      const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
-      const pct = totalSessions === 0 ? 0 : ((presentCount + extraCount) / totalSessions) * 100;
-      return { name: s.displayName, pct };
-    });
+      setProgress(30);
+      setStatus('Compiling subject headers...');
+      await new Promise(r => setTimeout(r, 50));
 
-    const classAvg = filteredForExport.length === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / filteredForExport.length);
-    const detentionCount = studentStats.filter(s => s.pct < 75).length;
+      const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Branch';
 
-    const statsInfo = [
-      ["EXECUTIVE SUMMARY", ""],
-      ["Total Strength", filteredForExport.length.toString()],
-      ["Class Average", `${classAvg}%`],
-      ["Detention Count (<75%)", detentionCount.toString()],
-      ["", ""]
-    ];
+      const regularRecs = recordsToExport.filter(r => {
+        if (r.subjectId === 'sub_extra') return false;
+        const subj = subjects.find(s => s.id === r.subjectId);
+        if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+        if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+        return true;
+      });
+      const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
+        const sA = subjects.find(s => s.id === a);
+        const sB = subjects.find(s => s.id === b);
+        const nameA = (sA?.code || '') + (sA?.type || 'theory');
+        const nameB = (sB?.code || '') + (sB?.type || 'theory');
+        return nameA.localeCompare(nameB);
+      });
 
-    const headerLabels = ["Sr No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Present Count", "Attendance %"];
-    let excelRows: any[][] = [...headerRows, ...statsInfo];
-
-    // Group students by Batch
-    const batchesMap = new Map<string, User[]>();
-    filteredForExport.forEach(s => {
-      const bId = s.studentData?.batchId || 'UNASSIGNED';
-      if (!batchesMap.has(bId)) batchesMap.set(bId, []);
-      batchesMap.get(bId)!.push(s);
-    });
-
-    Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
-      const batchNameStr = metaBatches[batchId] || batchId;
-
-      // Find all records that apply to this batch specifically or to the whole class
-      const batchRegularRecs = regularRecs.filter(r => r.batchId === batchId || r.batchId === 'ALL');
-      
-      const batchSubjectSessionCounts: Record<string, number> = {};
+      const subjectSessionCounts: Record<string, number> = {};
       uniqueSubjectIds.forEach(sid => {
-        const batchSubjectSessions = new Set(batchRegularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
-        batchSubjectSessionCounts[sid] = batchSubjectSessions;
+        const subjectSessions = new Set(regularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
+        subjectSessionCounts[sid] = subjectSessions;
       });
 
-      // Add Batch Spacing and Headers
-      excelRows.push([]); 
-      excelRows.push([`>>> BATCH: ${batchNameStr} <<<`]);
-      excelRows.push(headerLabels);
+      const totalRegularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
+      const subjectHeaders = uniqueSubjectIds.map(sid => {
+        const s = subjects.find(s => s.id === sid);
+        return s ? `${s.code} (${s.type === 'lab' ? 'Lab' : 'Theory'})` : sid;
+      });
 
-      const batchTotalLectures = Object.values(batchSubjectSessionCounts).reduce((acc, curr) => acc + curr, 0);
-      const batchTotalsLabelRow = ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => batchSubjectSessionCounts[sid].toString()), "", batchTotalLectures.toString(), "VARIES", ""];
-      excelRows.push(batchTotalsLabelRow);
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const session = now.getMonth() >= 6 ? `${currentYear}-${(currentYear + 1) % 100}` : `${currentYear - 1}-${currentYear % 100}`;
 
-      const batchDataRows = batchStudents.map(s => {
+      const headerRows = [
+        ["ACROPOLIS INSTITUTE OF TECHNOLOGY AND RESEARCH"],
+        ["DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING"],
+        [`Attendance Summary Report: ${branchName} | SESSION: ${session}`],
+        [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
+        [`Generated: ${now.toLocaleString()} | ADMIN EXPORT`],
+        []
+      ];
+
+      setProgress(50);
+      setStatus('Calculating class statistics...');
+      await new Promise(r => setTimeout(r, 50));
+
+      const allBranchStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+
+      // --- 2. Stats Calculation (Optimized O(N+M)) ---
+      const studentStatsMap = new Map<string, { present: number, total: number }>();
+      regularRecs.forEach(r => {
+        const current = studentStatsMap.get(r.studentId) || { present: 0, total: 0 };
+        studentStatsMap.set(r.studentId, {
+          present: current.present + (r.isPresent ? 1 : 0),
+          total: current.total + 1
+        });
+      });
+
+      const filteredForExport = filterMode === 'FULL' ? allBranchStudents : allBranchStudents.filter(s => {
+        const stats = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
+        const pct = stats.total === 0 ? 0 : (stats.present / stats.total) * 100;
+        if (attendanceOperator === 'GE') return pct >= attendanceThreshold;
+        if (attendanceOperator === 'LE') return pct <= attendanceThreshold;
+        if (attendanceOperator === 'GT') return pct > attendanceThreshold;
+        if (attendanceOperator === 'LT') return pct < attendanceThreshold;
+        return true;
+      });
+
+      const studentStats = filteredForExport.map(s => {
         const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
-        const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
+        const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
         const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
         const totalSessions = studentRegularRecs.length;
         const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+        const pct = totalSessions === 0 ? 0 : ((presentCount + extraCount) / totalSessions) * 100;
+        return { name: s.displayName, pct };
+      });
 
-        const subjectAttendance = uniqueSubjectIds.map(sid => {
-          return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
+      const classAvg = filteredForExport.length === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / filteredForExport.length);
+      const detentionCount = studentStats.filter(s => s.pct < 75).length;
+
+      const statsInfo = [
+        ["EXECUTIVE SUMMARY", ""],
+        ["Total Strength", filteredForExport.length.toString()],
+        ["Class Average", `${classAvg}%`],
+        ["Detention Count (<75%)", detentionCount.toString()],
+        ["", ""]
+      ];
+
+      const headerLabels = ["Sr No", "Name", "Enrollment", ...subjectHeaders, "Extra", "Total lectures", "Present Count", "Attendance %"];
+      let excelRows: any[][] = [...headerRows, ...statsInfo];
+
+      // Group students by Batch
+      const batchesMap = new Map<string, User[]>();
+      filteredForExport.forEach(s => {
+        const bId = s.studentData?.batchId || 'UNASSIGNED';
+        if (!batchesMap.has(bId)) batchesMap.set(bId, []);
+        batchesMap.get(bId)!.push(s);
+      });
+
+      setProgress(70);
+      setStatus('Generating batch data...');
+      await new Promise(r => setTimeout(r, 50));
+
+      Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
+        const batchNameStr = metaBatches[batchId] || batchId;
+
+        // Find all records that apply to this batch specifically or to the whole class
+        const batchRegularRecs = regularRecs.filter(r => r.batchId === batchId || r.batchId === 'ALL');
+        
+        const batchSubjectSessionCounts: Record<string, number> = {};
+        uniqueSubjectIds.forEach(sid => {
+          const batchSubjectSessions = new Set(batchRegularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
+          batchSubjectSessionCounts[sid] = batchSubjectSessions;
         });
 
-        const pct = totalSessions === 0 ? 0 : Math.round(((presentCount + extraCount) / totalSessions) * 100);
+        // Add Batch Spacing and Headers
+        excelRows.push([]); 
+        excelRows.push([`>>> BATCH: ${batchNameStr} <<<`]);
+        excelRows.push(headerLabels);
 
-        return [
-          s.studentData?.rollNo || '',
-          s.displayName,
-          s.studentData?.enrollmentId || '',
-          ...subjectAttendance,
-          extraCount.toString(),
-          totalSessions.toString(),
-          (presentCount + extraCount).toString(),
-          `${pct}%`
-        ];
+        const batchTotalLectures = Object.values(batchSubjectSessionCounts).reduce((acc, curr) => acc + curr, 0);
+        const batchTotalsLabelRow = ["", "Total lectures held", "", ...uniqueSubjectIds.map(sid => batchSubjectSessionCounts[sid].toString()), "", batchTotalLectures.toString(), "VARIES", ""];
+        excelRows.push(batchTotalsLabelRow);
+
+        const batchDataRows = batchStudents.map(s => {
+          const studentRecs = recordsToExport.filter(r => r.studentId === s.uid);
+          const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
+          const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
+          const totalSessions = studentRegularRecs.length;
+          const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+
+          const subjectAttendance = uniqueSubjectIds.map(sid => {
+            return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
+          });
+
+          const pct = totalSessions === 0 ? 0 : Math.round(((presentCount + extraCount) / totalSessions) * 100);
+
+          return [
+            s.studentData?.rollNo || '',
+            s.displayName,
+            s.studentData?.enrollmentId || '',
+            ...subjectAttendance,
+            extraCount.toString(),
+            totalSessions.toString(),
+            (presentCount + extraCount).toString(),
+            `${pct}%`
+          ];
+        });
+
+        excelRows = excelRows.concat(batchDataRows);
+        excelRows.push([]); // trailing spacer
+        excelRows.push([]);
       });
 
-      excelRows = excelRows.concat(batchDataRows);
-      excelRows.push([]); // trailing spacer
-      excelRows.push([]);
-    });
+      setProgress(85);
+      setStatus('Applying Excel styling...');
+      await new Promise(r => setTimeout(r, 50));
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(excelRows);
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: headerLabels.length - 1 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: headerLabels.length - 1 } },
-      { s: { r: 2, c: 0 }, e: { r: 2, c: headerLabels.length - 1 } }
-    ];
-    // Auto Width
-    const colWidths = headerLabels.map((_, colIndex) => {
-      let maxLen = 10;
-      excelRows.forEach((row, ri) => {
-        if (ri < 10) return;
-        if (row[colIndex]) {
-          const len = row[colIndex].toString().length;
-          if (len > maxLen) maxLen = len;
-        }
-      });
-      return { wch: maxLen + 4 };
-    });
-    ws['!cols'] = colWidths;
-
-    // Frozen Panes
-    ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 13 }];
-
-    // --- 5. Apply Colors & Styles ---
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-    for (let R = range.s.r; R <= range.e.r; ++R) {
-      for (let C = range.s.c; C <= range.e.c; ++C) {
-        const addr = XLSX.utils.encode_cell({ r: R, c: C });
-        if (!ws[addr]) continue;
-
-        ws[addr].s = {
-          font: { name: "Calibri", sz: 10 },
-          alignment: { vertical: "center", horizontal: "left", wrapText: true },
-          border: {
-            top: { style: "thin", color: { rgb: "CBD5E1" } },
-            bottom: { style: "thin", color: { rgb: "CBD5E1" } },
-            left: { style: "thin", color: { rgb: "CBD5E1" } },
-            right: { style: "thin", color: { rgb: "CBD5E1" } }
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(excelRows);
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: headerLabels.length - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: headerLabels.length - 1 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: headerLabels.length - 1 } }
+      ];
+      // Auto Width
+      const colWidths = headerLabels.map((_, colIndex) => {
+        let maxLen = 10;
+        excelRows.forEach((row, ri) => {
+          if (ri < 10) return;
+          if (row[colIndex]) {
+            const len = row[colIndex].toString().length;
+            if (len > maxLen) maxLen = len;
           }
-        };
+        });
+        return { wch: maxLen + 4 };
+      });
+      ws['!cols'] = colWidths;
 
-        // Main Headers (Rows 0-2)
-        if (R >= 0 && R <= 2) {
-          ws[addr].s.fill = { fgColor: { rgb: "0F172A" } };
-          ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 12 };
-          ws[addr].s.alignment.horizontal = "center";
+      // Frozen Panes
+      ws['!views'] = [{ state: 'frozen', xSplit: 2, ySplit: 13 }];
+
+      // --- 5. Apply Colors & Styles ---
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const addr = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[addr]) continue;
+
+          ws[addr].s = {
+            font: { name: "Calibri", sz: 10 },
+            alignment: { vertical: "center", horizontal: "left", wrapText: true },
+            border: {
+              top: { style: "thin", color: { rgb: "CBD5E1" } },
+              bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+              left: { style: "thin", color: { rgb: "CBD5E1" } },
+              right: { style: "thin", color: { rgb: "CBD5E1" } }
+            }
+          };
+
+          // Main Headers (Rows 0-2)
+          if (R >= 0 && R <= 2) {
+            ws[addr].s.fill = { fgColor: { rgb: "0F172A" } };
+            ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 12 };
+            ws[addr].s.alignment.horizontal = "center";
+          }
+
+          const rowVal0 = excelRows[R]?.[0]?.toString() || '';
+          const rowVal1 = excelRows[R]?.[1]?.toString() || '';
+
+          // Batch Title Row
+          if (rowVal0.startsWith('>>> BATCH')) {
+            ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
+            ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
+            ws[addr].s.alignment.horizontal = "center";
+          }
+
+          // Table Header
+          if (rowVal0 === 'Sr No') {
+            ws[addr].s.fill = { fgColor: { rgb: "334155" } };
+            ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
+            ws[addr].s.alignment.horizontal = "center";
+          }
+
+          // Totals Row
+          if (rowVal1 === 'Total lectures held') {
+            ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
+            ws[addr].s.font = ws[addr].s.font || {};
+            ws[addr].s.font.bold = true;
+          }
+
+          // Numbers and Percentages
+          if (C >= 3 && R > 7) {
+            ws[addr].s.alignment.horizontal = "right";
+            const val = ws[addr].v?.toString() || '';
+            if (val.includes('%')) {
+              const num = parseInt(val);
+              if (num < 75) {
+                ws[addr].s.font = { color: { rgb: "FF0000" }, bold: true };
+              }
+            }
+          }
         }
-
-        const rowVal0 = excelRows[R]?.[0]?.toString() || '';
-        const rowVal1 = excelRows[R]?.[1]?.toString() || '';
-
-        // Batch Title Row
-        if (rowVal0.startsWith('>>> BATCH')) {
-          ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
-          ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
-          ws[addr].s.alignment.horizontal = "center";
-        }
-
-        // Table Header
-        if (rowVal0 === 'Sr No') {
-          ws[addr].s.fill = { fgColor: { rgb: "334155" } };
-          ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
-          ws[addr].s.alignment.horizontal = "center";
-        }
-
-        // Totals Row
-        if (rowVal1 === 'Total lectures held') {
-          ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
-          ws[addr].s.font = ws[addr].s.font || {};
-          ws[addr].s.font.bold = true;
-        }
-
-        // Status column has been removed
       }
+
+      // Merge batch title rows across the whole table
+      if (!ws['!merges']) ws['!merges'] = [];
+      excelRows.forEach((row, R) => {
+        if (row[0]?.toString().startsWith('>>> BATCH')) {
+          ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: headerLabels.length - 1 } });
+        }
+      });
+
+      setProgress(95);
+      setStatus('Finalizing file...');
+      await new Promise(r => setTimeout(r, 400));
+
+      XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
+      XLSX.writeFile(wb, `${branchName}_Admin_Summary.xlsx`);
+
+      setProgress(100);
+      setStatus('Complete!');
+      setShowExportModal(false);
+    } catch (e: any) {
+      alert("Export failed: " + e.message);
+    } finally {
+      setTimeout(() => {
+        setLoading(false);
+        setProgress(0);
+      }, 800);
     }
-
-    // Merge batch title rows across the whole table
-    if (!ws['!merges']) ws['!merges'] = [];
-    excelRows.forEach((row, R) => {
-      if (row[0]?.toString().startsWith('>>> BATCH')) {
-        ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: headerLabels.length - 1 } });
-      }
-    });
-
-    XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-    XLSX.writeFile(wb, `${branchName}_Admin_Summary.xlsx`);
-    setShowExportModal(false);
   };
 
   const downloadCSV = (rows: string[][], filename: string) => {
@@ -2171,6 +2262,181 @@ const ReportManagement: React.FC = () => {
                         {loading ? 'Processing...' : 'Export CSV'}
                       </Button>
                     </div>
+                  </div>
+
+                  {/* MST Performance Export */}
+                  <div className="pt-8 border-t border-slate-100">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 block">Performance Analytics</label>
+                    <div className="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100 flex flex-col md:flex-row items-center gap-6">
+                      <div className="flex-1 space-y-2">
+                        <h4 className="font-black text-indigo-900 text-sm uppercase">MST Marks Summary</h4>
+                        <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest leading-none">Download all marks for this class</p>
+                        <select
+                           value={midSemType}
+                           onChange={e => setMidSemType(e.target.value as MidSemType)}
+                           className="w-full mt-3 p-3 bg-white border-none rounded-xl text-xs font-black text-indigo-900 uppercase shadow-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        >
+                           <option value="MID_SEM_1">MST 1</option>
+                           <option value="MID_SEM_2">MST 2</option>
+                           <option value="MID_SEM_REMEDIAL">Remedial MST</option>
+                        </select>
+                      </div>
+                      <Button 
+                        onClick={async () => {
+                           setLoading(true);
+                           setProgress(0);
+                           setStatus('Initializing data fetch...');
+                           try {
+                              const studentIds = students.map(s => s.uid);
+                              setProgress(20);
+                              setStatus('Fetching marks from database...');
+                              const marks = await db.getMarksByStudents(studentIds, midSemType);
+                              setProgress(50);
+                              setStatus('Processing branch results...');
+                              const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Branch';
+                              const examName = midSemType === 'MID_SEM_1' ? 'MST 1' : midSemType === 'MID_SEM_2' ? 'MST 2' : 'Remedial MST';
+                              
+                              const usedSubjectIds = Array.from(new Set(marks.map(m => m.subjectId)));
+                              const branchSubjects = subjects.filter(s => usedSubjectIds.includes(s.id));
+
+                              const data = students.map(s => {
+                                 const studentMarks = marks.filter(m => m.studentId === s.uid);
+                                 const row: any = {
+                                    'Student Name': s.displayName,
+                                    'Enrollment Number': s.studentData?.enrollmentId || '',
+                                    'Roll Number': s.studentData?.rollNo || '',
+                                    'Class/Batch': metaBatches[s.studentData?.batchId || ''] || 'ALL',
+                                 };
+                                 branchSubjects.forEach(sub => {
+                                    const m = studentMarks.find(m => m.subjectId === sub.id);
+                                    row[`${sub.name} (${sub.code})`] = m ? (m.marksObtained === -1 ? 'A' : m.marksObtained) : '-';
+                                 });
+                                 return row;
+                              });
+
+                              setProgress(75);
+                              setStatus('Applying institutional branding...');
+                              await new Promise(r => setTimeout(r, 500));
+
+                              const examTitle = midSemType === 'MID_SEM_1' ? 'MID SEMESTER TEST - I' : midSemType === 'MID_SEM_2' ? 'MID SEMESTER TEST - II' : 'REMEDIAL MST';
+                              const now = new Date();
+                              const currentYear = now.getFullYear();
+                              const session = now.getMonth() >= 6 ? `${currentYear}-${(currentYear + 1) % 100}` : `${currentYear - 1}-${currentYear % 100}`;
+                              
+                              const headerAOA = [
+                                 ['ACROPOLIS INSTITUTE OF TECHNOLOGY AND RESEARCH'],
+                                 ['DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING'],
+                                 [`ADMIN SUMMARY: ${examTitle} | SESSION: ${session}`],
+                                 [`BRANCH: ${branchName.toUpperCase()} | GENERATED BY: ADMINISTRATOR`],
+                                 [`GENERATED ON: ${now.toLocaleDateString()}`],
+                                 [] // Spacer
+                              ];
+
+                              const tableHeaders = Object.keys(data[0] || {});
+                              const tableData = data.map(row => Object.values(row));
+                              const finalAOA = [...headerAOA, tableHeaders, ...tableData];
+
+                              const ws = XLSX.utils.aoa_to_sheet(finalAOA);
+                              const wb = XLSX.utils.book_new();
+                              XLSX.utils.book_append_sheet(wb, ws, "MST Marks Summary");
+
+                              // Merges for Header
+                              ws['!merges'] = [
+                                 { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+                                 { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+                                 { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
+                                 { s: { r: 3, c: 0 }, e: { r: 3, c: tableHeaders.length - 1 } },
+                                 { s: { r: 4, c: 0 }, e: { r: 4, c: tableHeaders.length - 1 } },
+                              ];
+
+                              // Auto-size columns
+                              const colWidths = tableHeaders.map((_, colIndex) => {
+                                 let maxLen = tableHeaders[colIndex].length;
+                                 tableData.forEach(row => {
+                                    const len = String(row[colIndex] || '').length;
+                                    if (len > maxLen) maxLen = len;
+                                 });
+                                 return { wch: maxLen + 4 };
+                              });
+                              ws['!cols'] = colWidths;
+
+                              // Apply Styling
+                              const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                              for (let R = range.s.r; R <= range.e.r; ++R) {
+                                 for (let C = range.s.c; C <= range.e.c; ++C) {
+                                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                                    if (!ws[addr]) continue;
+
+                                    ws[addr].s = {
+                                       font: { name: "Calibri", sz: 11 },
+                                       alignment: { vertical: "center", horizontal: "left" }
+                                    };
+
+                                    // Branding Header Styling
+                                    if (R >= 0 && R <= 4) {
+                                       ws[addr].s.alignment.horizontal = "center";
+                                       ws[addr].s.font.bold = true;
+                                       if (R === 0) ws[addr].s.font.sz = 16;
+                                       if (R === 1) ws[addr].s.font.sz = 14;
+                                       continue;
+                                    }
+
+                                    // Table Headers (Row 6)
+                                    if (R === 6) {
+                                       ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
+                                       ws[addr].s.font.bold = true;
+                                       ws[addr].s.border = {
+                                          bottom: { style: "thin", color: { rgb: "000000" } },
+                                          top: { style: "thin", color: { rgb: "000000" } }
+                                       };
+                                    }
+
+                                    // Marks Columns (Index 4 onwards)
+                                    if (C >= 4 && R > 6) {
+                                       ws[addr].s.alignment.horizontal = "right";
+                                       if (ws[addr].v === 'A') {
+                                          ws[addr].s.font.color = { rgb: "FF0000" };
+                                          ws[addr].s.font.bold = true;
+                                       }
+                                    }
+                                 }
+                              }
+
+                              setProgress(90);
+                              setStatus('Finalizing report structure...');
+                              await new Promise(r => setTimeout(r, 600));
+
+                              setProgress(100);
+                              setStatus('Download starting...');
+                              await new Promise(r => setTimeout(r, 300));
+
+                              XLSX.writeFile(wb, `${branchName}_${examName}_Summary.xlsx`);
+                           } catch (e: any) {
+                              alert("Export failed: " + e.message);
+                           } finally {
+                              setTimeout(() => {
+                                 setLoading(false);
+                                 setProgress(0);
+                              }, 800);
+                           }
+                        }}
+                        disabled={loading || students.length === 0}
+                        className="w-full md:w-auto px-10 bg-indigo-600 text-white h-14 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-100 disabled:opacity-50"
+                      >
+                        {loading ? (
+                           <>
+                              <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                              Wait...
+                           </>
+                        ) : (
+                           <>
+                              <FileDown className="h-4 w-4 mr-2" />
+                              Download Summary
+                           </>
+                        )}
+                      </Button>
+                    </div>
+                    <ExportProgressModal isOpen={loading} progress={progress} status={status} />
                   </div>
                 </div>
               ) : (

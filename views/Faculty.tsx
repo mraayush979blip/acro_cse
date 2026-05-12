@@ -2,11 +2,11 @@ import React, { useEffect, useState, useMemo } from 'react';
 import XLSX from 'xlsx-js-style';
 import { db } from '../services/db';
 import { User, FacultyAssignment, AttendanceRecord, Batch, Subject, Mark, MidSemType } from '../types';
-import { Button, Card, Modal, Input, Select } from '../components/UI';
+import { Button, Card, Modal, Input, Select, ExportProgressModal } from '../components/UI';
 import {
    Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, Check, X,
    CheckSquare, Square, XCircle, AlertCircle, AlertTriangle, Trash, Loader2,
-   Calendar, RefreshCw, Layers, Eye, BookOpen, User as UserIcon, Activity, Users, Trophy
+   Calendar, RefreshCw, Layers, Eye, BookOpen, User as UserIcon, Activity, Users, Trophy, Upload
 } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Skeleton, SkeletonRow, SkeletonCard } from '../components/Skeleton';
@@ -30,6 +30,877 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; disabled?
       </div>
    </button>
 );
+
+const CoordinatorMarkingMonitor: React.FC<{ branchId: string; metaData: any }> = ({ branchId, metaData }) => {
+   const [assignments, setAssignments] = useState<FacultyAssignment[]>([]);
+   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+   useEffect(() => {
+      const load = async () => {
+         setLoading(true);
+         try {
+            const [allAssigns, allAtt] = await Promise.all([
+               db.getAssignments(),
+               db.getDateAttendance(date)
+            ]);
+            setAssignments(allAssigns.filter(a => a.branchId === branchId));
+            setAttendance(allAtt.filter(a => a.branchId === branchId));
+         } finally {
+            setLoading(false);
+         }
+      };
+      load();
+   }, [branchId, date]);
+
+   if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-indigo-500" /></div>;
+
+   return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 px-2">
+            <div className="space-y-1">
+               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Faculty Monitor</h3>
+               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Real-time status for {date}</p>
+            </div>
+            <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
+               <Input
+                  type="date"
+                  value={date}
+                  onChange={e => setDate(e.target.value)}
+                  className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl"
+               />
+            </div>
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {assignments.length > 0 ? assignments.map(a => {
+               const marked = attendance.some(r => r.subjectId === a.subjectId && r.date === date);
+               const sub = metaData.subjects[a.subjectId];
+               return (
+                  <div key={a.id} className={`group relative p-6 rounded-[2rem] border transition-all duration-300 overflow-hidden ${marked
+                     ? 'bg-white border-emerald-100 shadow-sm hover:shadow-md'
+                     : 'bg-white border-rose-100 shadow-sm hover:shadow-md'
+                     }`}>
+                     {/* Decorative background for status */}
+                     <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 transition-all duration-500 ${marked ? 'bg-emerald-100/50' : 'bg-rose-100/50'
+                        }`} />
+
+                     <div className="relative flex items-center justify-between gap-4">
+                        <div className="min-w-0 space-y-1">
+                           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest">
+                              {sub?.code || 'N/A'}
+                           </div>
+                           <h4 className="font-black text-slate-800 uppercase tracking-tight truncate leading-tight">
+                              {sub?.name || 'Unknown Subject'}
+                           </h4>
+                           <div className="flex items-center gap-2">
+                              <UserIcon className="h-3 w-3 text-slate-400" />
+                              <span className="text-[10px] font-bold text-slate-500">{metaData.faculty[a.facultyId] || 'Unknown Faculty'}</span>
+                           </div>
+                        </div>
+
+                        <div className="flex flex-col items-center gap-2">
+                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 ${marked ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100 rotate-0' : 'bg-rose-500 text-white shadow-lg shadow-rose-100 animate-pulse'
+                              }`}>
+                              {marked ? <CheckCircle2 className="h-7 w-7" strokeWidth={3} /> : <AlertCircle className="h-7 w-7" strokeWidth={3} />}
+                           </div>
+                           <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${marked ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {marked ? 'Complete' : 'Pending'}
+                           </span>
+                        </div>
+                     </div>
+                  </div>
+               );
+            }) : (
+               <div className="col-span-2 flex flex-col items-center justify-center py-20 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
+                  <Eye className="h-10 w-10 text-slate-200 mb-4 animate-pulse" />
+                  <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No assignments tracked for this branch</p>
+               </div>
+            )}
+         </div>
+      </div>
+   );
+};
+
+
+interface CoordinatorReportProps {
+   branchId: string;
+   branchName: string;
+   students: User[];
+   metaData: any;
+   user: User;
+}
+
+const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchName, students, metaData, user }) => {
+   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+   const [loading, setLoading] = useState(false);
+   const [progress, setProgress] = useState(0);
+   const [status, setStatus] = useState('');
+   const [exportRange, setExportRange] = useState<'TILL_TODAY' | 'CUSTOM'>('TILL_TODAY');
+   const [exportSubjectType, setExportSubjectType] = useState<'ALL' | 'THEORY' | 'LAB'>('ALL');
+   const [exportStartDate, setExportStartDate] = useState('');
+   const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
+   const [showFullPreview, setShowFullPreview] = useState(false);
+   const [filterMode, setFilterMode] = useState<'FULL' | 'FILTERED'>('FULL');
+   const [filterCondition, setFilterCondition] = useState<'LE' | 'GE' | 'LT' | 'GT'>('LE');
+   const [filterValue, setFilterValue] = useState(75);
+   const [midSemType, setMidSemType] = useState<MidSemType>('MID_SEM_1');
+
+   useEffect(() => {
+      const load = async () => {
+         setLoading(true);
+         setProgress(10);
+         setStatus('Fetching attendance records...');
+         try {
+            setAttendance(await db.getBranchAttendance(branchId));
+            setProgress(100);
+            setStatus('Ready');
+         } finally { 
+            setTimeout(() => {
+               setLoading(false);
+               setProgress(0);
+            }, 500);
+         }
+      };
+      load();
+   }, [branchId]);
+
+   const previewRecords = useMemo(() => {
+      const start = exportRange === 'CUSTOM' ? exportStartDate : '';
+      const end = exportRange === 'CUSTOM' ? exportEndDate : '';
+      return attendance.filter(r => {
+         const inStart = !start || r.date >= start;
+         const inEnd = !end || r.date <= end;
+         return inStart && inEnd;
+      });
+   }, [attendance, exportRange, exportStartDate, exportEndDate]);
+
+   const previewStats = useMemo(() => {
+      const regularRecs = previewRecords.filter(r => {
+         if (r.subjectId === 'sub_extra') return false;
+         const subj = metaData.subjects[r.subjectId];
+         if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+         if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+         return true;
+      });
+      const regularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
+      const totalRecords = previewRecords.length;
+      return { sessions: regularSessions, totalRecords };
+   }, [previewRecords, exportSubjectType, metaData.subjects]);
+
+   const filteredStudents = useMemo(() => {
+      if (filterMode === 'FULL') return students;
+      return students.filter(s => {
+         const relevantRegular = previewRecords.filter(r => {
+            if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
+            const subj = metaData.subjects[r.subjectId];
+            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+            return true;
+         });
+         const present = relevantRegular.filter(r => r.isPresent).length;
+         const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
+         if (filterCondition === 'LT') return pct < filterValue;
+         if (filterCondition === 'GT') return pct > filterValue;
+         if (filterCondition === 'LE') return pct <= filterValue;
+         if (filterCondition === 'GE') return pct >= filterValue;
+         return true;
+      });
+   }, [students, previewRecords, previewStats.sessions, filterMode, filterCondition, filterValue, exportSubjectType, metaData.subjects]);
+
+   const averageAttendance = useMemo(() => {
+      if (filteredStudents.length === 0) return '0%';
+      const totalPct = filteredStudents.reduce((acc, s) => {
+         const relevantRegular = previewRecords.filter(r => {
+            if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
+            const subj = metaData.subjects[r.subjectId];
+            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+            return true;
+         });
+         const present = relevantRegular.filter(r => r.isPresent).length;
+         return acc + (previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100);
+      }, 0);
+      return Math.round(totalPct / filteredStudents.length) + '%';
+   }, [filteredStudents, previewRecords, previewStats.sessions, exportSubjectType, metaData.subjects]);
+
+   const lowAttendanceCount = useMemo(() => {
+      return filteredStudents.filter(s => {
+         const relevantRegular = previewRecords.filter(r => {
+            if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
+            const subj = metaData.subjects[r.subjectId];
+            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+            return true;
+         });
+         const present = relevantRegular.filter(r => r.isPresent).length;
+         const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
+         return pct < 75;
+      }).length;
+   }, [filteredStudents, previewRecords, previewStats.sessions, exportSubjectType, metaData.subjects]);
+
+   const executeExport = async () => {
+      setLoading(true);
+      setProgress(0);
+      setStatus('Initializing report engine...');
+
+      try {
+         await new Promise(r => setTimeout(r, 600)); // Increased initial delay
+         setProgress(10);
+         setStatus('Filtering records...');
+         await new Promise(r => setTimeout(r, 400));
+
+         // 1. Identify relevant subjects (those with at least one record in this branch/period)
+         const regularRecs = previewRecords.filter(r => {
+            if (r.subjectId === 'sub_extra') return false;
+            const subj = metaData.subjects[r.subjectId];
+            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+            return true;
+         });
+
+         setProgress(30);
+         setStatus('Calculating subject metrics...');
+         await new Promise(r => setTimeout(r, 50));
+
+         const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
+            const sA = metaData.subjects[a];
+            const sB = metaData.subjects[b];
+            const nameA = (sA?.code || sA?.name || '') + (sA?.type || 'theory');
+            const nameB = (sB?.code || sB?.name || '') + (sB?.type || 'theory');
+            return nameA.localeCompare(nameB);
+         });
+
+         const subjectHeaders = uniqueSubjectIds.map(sid => {
+            const s = metaData.subjects[sid];
+            return s ? `${s.code || s.name} (${s.type === 'lab' ? 'Lab' : 'Theory'})` : sid;
+         });
+
+         // Calculate total sessions per subject
+         const subjectSessionCounts: Record<string, number> = {};
+         uniqueSubjectIds.forEach(sid => {
+            const subjectSessions = new Set(regularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
+            subjectSessionCounts[sid] = subjectSessions;
+         });
+
+         const totalRegularSessions = previewStats.sessions;
+
+         const now = new Date();
+         const currentYear = now.getFullYear();
+         const session = now.getMonth() >= 6 ? `${currentYear}-${(currentYear + 1) % 100}` : `${currentYear - 1}-${currentYear % 100}`;
+
+         const headerInfo = [
+            ["ACROPOLIS INSTITUTE OF TECHNOLOGY AND RESEARCH"],
+            ["DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING"],
+            [`Attendance Report: ${branchName} | SESSION: ${session}`],
+            [`Type: ${exportRange === 'TILL_TODAY' ? 'Till Date' : 'Custom Range'}`],
+            [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
+            [`Generated: ${now.toLocaleString()}`],
+            [] // Spacer
+         ];
+
+         setProgress(50);
+         setStatus('Generating batch-wise analytics...');
+         await new Promise(r => setTimeout(r, 50));
+
+         // --- STATS CALCULATION ---
+         const totalStudents = filteredStudents.length;
+         const studentStats = filteredStudents.map(s => {
+            const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
+            const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
+            const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
+            const totalSessions = studentRegularRecs.length;
+            const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+            const pct = totalSessions === 0 ? 0 : ((presentCount + extraCount) / totalSessions) * 100;
+            return { name: s.displayName, pct };
+         });
+
+         const detentionCount = studentStats.filter(s => s.pct < 75).length;
+         const classAvg = totalStudents === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / totalStudents);
+
+         const statsInfo = [
+            ["EXECUTIVE SUMMARY", ""],
+            ["Total Strength", totalStudents.toString()],
+            ["Class Average", `${classAvg}%`],
+            ["Detention Count (<75%)", detentionCount.toString()],
+            ["", ""]
+         ];
+
+         const mainHeader = ["Serial No", "Name", "Enrollment ID", ...subjectHeaders, "Extra Lectures", "Total Lectures", "Present Count", "Attendance %"];
+         let csvRows: any[][] = [...headerInfo, ...statsInfo];
+
+         // Group students by Batch
+         const batchesMap = new Map<string, User[]>();
+         filteredStudents.forEach(s => {
+            const bId = s.studentData?.batchId || 'UNASSIGNED';
+            if (!batchesMap.has(bId)) batchesMap.set(bId, []);
+            batchesMap.get(bId)!.push(s);
+         });
+
+         setProgress(70);
+         setStatus('Compiling student worksheets...');
+         await new Promise(r => setTimeout(r, 50));
+
+         Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
+            const batchNameStr = metaData.batches?.[batchId] || batchId;
+
+            // Find all records that apply to this batch specifically or to the whole class
+            const batchRegularRecs = regularRecs.filter(r => r.batchId === batchId || r.batchId === 'ALL');
+
+            const batchSubjectSessionCounts: Record<string, number> = {};
+            uniqueSubjectIds.forEach(sid => {
+               const batchSubjectSessions = new Set(batchRegularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
+               batchSubjectSessionCounts[sid] = batchSubjectSessions;
+            });
+
+            // Add Batch Spacing and Headers
+            csvRows.push([]);
+            csvRows.push([`>>> BATCH: ${batchNameStr} <<<`]);
+            csvRows.push(mainHeader);
+
+            const batchTotalLectures = Object.values(batchSubjectSessionCounts).reduce((acc, curr) => acc + curr, 0);
+            const batchTotalsLabelRow = ["", "Total Lectures Held", "", ...uniqueSubjectIds.map(sid => batchSubjectSessionCounts[sid].toString()), "", batchTotalLectures.toString(), "VARIES", ""];
+            csvRows.push(batchTotalsLabelRow);
+
+            const batchDataRows = batchStudents.map(s => {
+               const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
+               const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
+               const studentTotalSessions = studentRegularRecs.length; // use accurate logic
+               const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
+               const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
+
+               const subjectAttendance = uniqueSubjectIds.map(sid => {
+                  return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
+               });
+
+               const pct = studentTotalSessions === 0 ? 0 : Math.round(((presentCount + extraCount) / studentTotalSessions) * 100);
+
+               return [
+                  s.studentData?.rollNo || '',
+                  s.displayName,
+                  s.studentData?.enrollmentId || '',
+                  ...subjectAttendance,
+                  extraCount.toString(),
+                  studentTotalSessions.toString(),
+                  (presentCount + extraCount).toString(),
+                  `${pct}%`
+               ];
+            });
+
+            csvRows = csvRows.concat(batchDataRows);
+            csvRows.push([]); // trailing spacer
+            csvRows.push([]);
+         });
+
+         setProgress(85);
+         setStatus('Applying institutional branding...');
+         await new Promise(r => setTimeout(r, 50));
+
+         // Create Workbook
+         const wb = XLSX.utils.book_new();
+         const ws = XLSX.utils.aoa_to_sheet(csvRows);
+
+         // --- ADVANCED STYLING & FORMATTING ---
+         // 1. Merge Main Headers
+         ws['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: mainHeader.length - 1 } }, // Main Title
+            { s: { r: 1, c: 0 }, e: { r: 1, c: mainHeader.length - 1 } }, // Dept
+            { s: { r: 2, c: 0 }, e: { r: 2, c: mainHeader.length - 1 } }  // Branch
+         ];
+
+         // 2. Auto-adjust column widths
+         const colWidths = mainHeader.map((_, colIndex) => {
+            let maxLen = 10;
+            csvRows.forEach((row, rowIndex) => {
+               if (rowIndex < 7) return; // Skip big title merges for width calculation
+               const val = row[colIndex];
+               if (val) {
+                  const len = val.toString().length;
+                  if (len > maxLen) maxLen = len;
+               }
+            });
+            return { wch: maxLen + 4 };
+         });
+         ws['!cols'] = colWidths;
+
+         // 3. Frozen Panes
+         ws['!views'] = [{ state: 'frozen', xSplit: 4, ySplit: 14 }];
+
+         // --- 5. Apply Colors & Styles ---
+         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+         for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+               const addr = XLSX.utils.encode_cell({ r: R, c: C });
+               if (!ws[addr]) continue;
+
+               ws[addr].s = {
+                  font: { name: "Calibri", sz: 10 },
+                  alignment: { vertical: "center", horizontal: "left", wrapText: true },
+                  border: {
+                     top: { style: "thin", color: { rgb: "CBD5E1" } },
+                     bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+                     left: { style: "thin", color: { rgb: "CBD5E1" } },
+                     right: { style: "thin", color: { rgb: "CBD5E1" } }
+                  }
+               };
+
+               // Main Headers
+               if (R >= 0 && R <= 2) {
+                  ws[addr].s.fill = { fgColor: { rgb: "0F172A" } };
+                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 12 };
+                  ws[addr].s.alignment.horizontal = "center";
+               }
+
+               const rowVal0 = csvRows[R]?.[0]?.toString() || '';
+               const rowVal1 = csvRows[R]?.[1]?.toString() || '';
+
+               // Batch Title Row
+               if (rowVal0.startsWith('>>> BATCH')) {
+                  ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
+                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
+                  ws[addr].s.alignment.horizontal = "center";
+               }
+
+               // Table Header
+               if (rowVal0 === 'Serial No') {
+                  ws[addr].s.fill = { fgColor: { rgb: "334155" } };
+                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
+                  ws[addr].s.alignment.horizontal = "center";
+               }
+
+               // Totals Row
+               if (rowVal1 === 'Total Lectures Held') {
+                  ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
+                  ws[addr].s.font = ws[addr].s.font || {};
+                  ws[addr].s.font.bold = true;
+               }
+
+               // Numbers and Percentages
+               if (C >= 3 && R > 7) {
+                  ws[addr].s.alignment.horizontal = "right";
+                  const val = ws[addr].v?.toString() || '';
+                  if (val.includes('%')) {
+                     const num = parseInt(val);
+                     if (num < 75) {
+                        ws[addr].s.font = { color: { rgb: "FF0000" }, bold: true };
+                     }
+                  }
+               }
+            }
+         }
+
+         // Merge batch title rows across the whole table
+         if (!ws['!merges']) ws['!merges'] = [];
+         csvRows.forEach((row, R) => {
+            if (row[0]?.toString().startsWith('>>> BATCH')) {
+               ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: mainHeader.length - 1 } });
+            }
+         });
+
+         setProgress(95);
+         setStatus('Finalizing file...');
+         await new Promise(r => setTimeout(r, 400));
+
+         XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
+         XLSX.writeFile(wb, `${branchName}_Summary_Report.xlsx`);
+
+         setProgress(100);
+         setStatus('Complete!');
+      } catch (e: any) {
+         alert("Export failed: " + e.message);
+      } finally {
+         setTimeout(() => {
+            setLoading(false);
+            setProgress(0);
+         }, 800);
+      }
+   };
+
+   return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
+         <div className="flex items-center justify-between pb-4 px-2">
+            <div className="flex items-center gap-3">
+               <div className="p-3 bg-indigo-50 rounded-[1.2rem]"><Layers className="h-5 w-5 text-indigo-600" /></div>
+               <div>
+                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Class Reports</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Export branch analytics</p>
+               </div>
+            </div>
+
+            {/* MST Marks Export Card */}
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+               <div className="absolute top-0 right-0 p-8">
+                  <Trophy className="h-12 w-12 text-indigo-50 opacity-50 group-hover:scale-110 transition-transform duration-500" />
+               </div>
+               <div className="relative">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full mb-4">
+                     <span className="text-[10px] font-black uppercase tracking-widest">Performance Export</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">MST Marks Summary</h3>
+                  <p className="text-slate-500 text-sm font-medium mb-8 max-w-md">Generate a branch-wide report for all subjects. This report includes a side-by-side comparison of marks for every student in your class.</p>
+
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                     <div className="w-full md:w-64">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Select Exam Type</label>
+                        <Select
+                           value={midSemType}
+                           onChange={e => setMidSemType(e.target.value as MidSemType)}
+                           className="w-full bg-slate-50 border-none font-bold text-sm h-12"
+                        >
+                           <option value="MID_SEM_1">MST 1</option>
+                           <option value="MID_SEM_2">MST 2</option>
+                           <option value="MID_SEM_REMEDIAL">Remedial MST</option>
+                        </Select>
+                     </div>
+                     <div className="flex-1 w-full pt-6 md:pt-0">
+                        <button
+                           onClick={async () => {
+                               setLoading(true);
+                               setProgress(0);
+                               setStatus('Initializing fetch...');
+                               await new Promise(r => setTimeout(r, 600));
+                              try {
+                                 setProgress(20);
+                                 setStatus('Fetching marks from database...');
+                                 await new Promise(r => setTimeout(r, 100)); // Give time for modal to show
+                                 const marks = await db.getMarksByStudents(students.map(s => s.uid), midSemType);
+                                 setProgress(50);
+                                 setStatus('Processing subjects and scores...');
+                                 await new Promise(r => setTimeout(r, 50));
+                                 const examName = midSemType === 'MID_SEM_1' ? 'MST 1' : midSemType === 'MID_SEM_2' ? 'MST 2' : 'Remedial MST';
+                                 
+                                 // Get all subjects that have marks or are assigned
+                                 const usedSubjectIds = Array.from(new Set(marks.map(m => m.subjectId)));
+                                 const branchSubjects = usedSubjectIds.map(sid => {
+                                    const sub = metaData.subjects[sid];
+                                    return sub ? { ...sub, id: sid } : null;
+                                 }).filter(Boolean) as any[];
+
+                                 const data = students.map(s => {
+                                    const studentMarks = marks.filter(m => m.studentId === s.uid);
+                                    const row: any = {
+                                       'Student Name': s.displayName,
+                                       'Enrollment Number': s.studentData?.enrollmentId || '',
+                                       'Roll Number': s.studentData?.rollNo || '',
+                                       'Class/Batch': metaData.batches[s.studentData?.batchId || ''] || 'ALL',
+                                    };
+                                    
+                                    branchSubjects.forEach(sub => {
+                                       const m = studentMarks.find(m => m.subjectId === sub.id);
+                                       row[`${sub.name} (${sub.code})`] = m ? (m.marksObtained === -1 ? 'A' : m.marksObtained) : '-';
+                                    });
+                                    
+                                    return row;
+                                 });
+
+                                 setProgress(70);
+                                 await new Promise(r => setTimeout(r, 50));
+                                 setStatus('Generating Excel worksheets...');
+                                 await new Promise(r => setTimeout(r, 500));
+
+                                 const examTitle = midSemType === 'MID_SEM_1' ? 'MID SEMESTER TEST - I' : midSemType === 'MID_SEM_2' ? 'MID SEMESTER TEST - II' : 'REMEDIAL MST';
+                                 const now = new Date();
+                                 const currentYear = now.getFullYear();
+                                 const session = now.getMonth() >= 6 ? `${currentYear}-${(currentYear + 1) % 100}` : `${currentYear - 1}-${currentYear % 100}`;
+                                 
+                                 const headerAOA = [
+                                    ['ACROPOLIS INSTITUTE OF TECHNOLOGY AND RESEARCH'],
+                                    ['DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING'],
+                                    [`BRANCH SUMMARY: ${examTitle} | SESSION: ${session}`],
+                                    [`BRANCH: ${branchName.toUpperCase()} | COORDINATOR: ${user.displayName.toUpperCase()}`],
+                                    [`GENERATED ON: ${now.toLocaleDateString()}`],
+                                    [] // Spacer
+                                 ];
+
+                                 const tableHeaders = Object.keys(data[0] || {});
+                                 const tableData = data.map(row => Object.values(row));
+                                 const finalAOA = [...headerAOA, tableHeaders, ...tableData];
+
+                                 const ws = XLSX.utils.aoa_to_sheet(finalAOA);
+                                 const wb = XLSX.utils.book_new();
+                                 XLSX.utils.book_append_sheet(wb, ws, "MST Marks Summary");
+
+                                 // Merges for Header
+                                 ws['!merges'] = [
+                                    { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+                                    { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+                                    { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
+                                    { s: { r: 3, c: 0 }, e: { r: 3, c: tableHeaders.length - 1 } },
+                                    { s: { r: 4, c: 0 }, e: { r: 4, c: tableHeaders.length - 1 } },
+                                 ];
+
+                                 // Auto-size columns
+                                 const colWidths = tableHeaders.map((_, colIndex) => {
+                                    let maxLen = tableHeaders[colIndex].length;
+                                    tableData.forEach(row => {
+                                       const len = String(row[colIndex] || '').length;
+                                       if (len > maxLen) maxLen = len;
+                                    });
+                                    return { wch: maxLen + 4 };
+                                 });
+                                 ws['!cols'] = colWidths;
+
+                                 // Apply Styling
+                                 const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                                 for (let R = range.s.r; R <= range.e.r; ++R) {
+                                    for (let C = range.s.c; C <= range.e.c; ++C) {
+                                       const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                                       if (!ws[addr]) continue;
+
+                                       ws[addr].s = {
+                                          font: { name: "Calibri", sz: 11 },
+                                          alignment: { vertical: "center", horizontal: "left" }
+                                       };
+
+                                       // Branding Header Styling
+                                       if (R >= 0 && R <= 4) {
+                                          ws[addr].s.alignment.horizontal = "center";
+                                          ws[addr].s.font.bold = true;
+                                          if (R === 0) ws[addr].s.font.sz = 16;
+                                          if (R === 1) ws[addr].s.font.sz = 14;
+                                          continue;
+                                       }
+
+                                       // Table Headers (Row 6)
+                                       if (R === 6) {
+                                          ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
+                                          ws[addr].s.font.bold = true;
+                                          ws[addr].s.border = {
+                                             bottom: { style: "thin", color: { rgb: "000000" } },
+                                             top: { style: "thin", color: { rgb: "000000" } }
+                                          };
+                                       }
+
+                                       // Marks Columns (Index 4 onwards)
+                                       if (C >= 4 && R > 6) {
+                                          ws[addr].s.alignment.horizontal = "right";
+                                          if (ws[addr].v === 'A') {
+                                             ws[addr].s.font.color = { rgb: "FF0000" };
+                                             ws[addr].s.font.bold = true;
+                                          }
+                                       }
+                                    }
+                                 }
+
+                                 setProgress(90);
+                                 await new Promise(r => setTimeout(r, 50));
+                                 setStatus('Applying institutional branding...');
+                                 await new Promise(r => setTimeout(r, 600));
+
+                                 setProgress(100);
+                                 setStatus('Starting download...');
+                                 await new Promise(r => setTimeout(r, 500));
+
+                                 XLSX.writeFile(wb, `${branchName}_${examName}_Summary.xlsx`);
+                              } catch (e: any) {
+                                 alert("Failed to export: " + e.message);
+                              } finally {
+                                 setTimeout(() => {
+                                    setLoading(false);
+                                    setProgress(0);
+                                 }, 800);
+                              }
+                           }}
+                           disabled={loading || students.length === 0}
+                           className="h-14 w-full md:w-auto px-10 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                        >
+                           {loading ? (
+                              <>
+                                 <Loader2 className="animate-spin h-4 w-4" />
+                                 <span>Wait...</span>
+                              </>
+                           ) : (
+                              <>
+                                 <FileDown className="h-4 w-4" />
+                                 <span>Download Summary Report</span>
+                              </>
+                           )}
+                        </button>
+                     </div>
+                  </div>
+               </div>
+               <ExportProgressModal isOpen={loading} progress={progress} status={status} />
+            </div>
+            <div className="flex gap-4">
+               <div className="text-right">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Classes</div>
+                  <div className="text-xl font-black text-indigo-600 leading-none">{previewStats.sessions}</div>
+               </div>
+               <div className="text-right">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Students</div>
+                  <div className="text-xl font-black text-indigo-600 leading-none">{filteredStudents.length}</div>
+               </div>
+            </div>
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
+               <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time range</label>
+                  <div className="grid grid-cols-2 gap-3">
+                     <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Session</button>
+                     <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Range</button>
+                  </div>
+                  {exportRange === 'CUSTOM' && (
+                     <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
+                        <Input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
+                        <Input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
+                     </div>
+                  )}
+               </div>
+
+               <div className="space-y-4 pt-4 border-t border-slate-50">
+                  <div className="space-y-3">
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject Type</label>
+                     <div className="grid grid-cols-3 gap-3">
+                        <button onClick={() => setExportSubjectType('ALL')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'ALL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>All</button>
+                        <button onClick={() => setExportSubjectType('THEORY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'THEORY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Theory</button>
+                        <button onClick={() => setExportSubjectType('LAB')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'LAB' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Lab</button>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="space-y-4 pt-4 border-t border-slate-50">
+                  <div className="space-y-3">
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendance Scope</label>
+                     <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => setFilterMode('FULL')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${filterMode === 'FULL' ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg translate-y-[-2px]' : 'bg-slate-50 text-slate-500 border-slate-50 hover:bg-slate-100'}`}>Full Class</button>
+                        <button onClick={() => setFilterMode('FILTERED')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${filterMode === 'FILTERED' ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg translate-y-[-2px]' : 'bg-slate-50 text-slate-500 border-slate-50 hover:bg-slate-100'}`}>Filtered</button>
+                     </div>
+                  </div>
+                  {filterMode === 'FILTERED' && (
+                     <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
+                        <select value={filterCondition} onChange={e => setFilterCondition(e.target.value as any)} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm">
+                           <option value="GE">Above or Equal (&ge;)</option>
+                           <option value="LE">Below or Equal (&le;)</option>
+                           <option value="GT">Strictly Above (&gt;)</option>
+                           <option value="LT">Strictly Below (&lt;)</option>
+                        </select>
+                        <div className="relative">
+                           <input type="number" value={filterValue} onChange={e => setFilterValue(Number(e.target.value))} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
+                           <span className="absolute right-4 top-3 text-[10px] text-slate-400 font-black">%</span>
+                        </div>
+                     </div>
+                  )}
+               </div>
+            </div>
+
+            <div className="flex flex-col justify-between gap-4">
+               <div className="bg-indigo-50/50 p-6 rounded-[2rem] border border-indigo-100/30 flex-1">
+                  <div className="flex items-center gap-3 mb-4">
+                     <div className="p-2 bg-indigo-100 rounded-xl"><Activity className="h-4 w-4 text-indigo-600" /></div>
+                     <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Report Insights</span>
+                  </div>
+                  <div className="space-y-3">
+                     <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-500">Average Attendance</span>
+                        <span className="font-black text-indigo-600">{averageAttendance}</span>
+                     </div>
+                     <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-500 font-medium text-slate-500">Low Attendance {"(<75%)"}</span>
+                        <span className="font-black text-rose-500">{lowAttendanceCount} Students</span>
+                     </div>
+                  </div>
+               </div>
+
+               <div className="flex gap-3">
+                  <Button onClick={() => setShowFullPreview(!showFullPreview)} variant="secondary" className="flex-1 h-16 rounded-3xl font-black uppercase tracking-widest text-[10px]">
+                     {showFullPreview ? <X className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
+                     {showFullPreview ? 'Close' : 'Preview'}
+                  </Button>
+                  <Button onClick={executeExport} className="flex-[2] h-16 bg-indigo-900 text-white rounded-3xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                     <FileDown className="h-4 w-4 mr-2" /> Download Report
+                  </Button>
+               </div>
+            </div>
+         </div>
+
+         {showFullPreview && (
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
+               <div className="p-6 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
+                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                     <Layers className="h-4 w-4 text-indigo-500" />
+                     Data Preview
+                  </h4>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{filteredStudents.length} Records Shown</span>
+               </div>
+               <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                     <thead>
+                        <tr className="border-b border-slate-50">
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Sr No</th>
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Name</th>
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Regular (P/T)</th>
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Extra</th>
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Total</th>
+                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Percentage</th>
+                        </tr>
+                     </thead>
+                     {(() => {
+                        const previewBatchesMap = new Map<string, User[]>();
+                        filteredStudents.forEach(s => {
+                           const bId = s.studentData?.batchId || 'UNASSIGNED';
+                           if (!previewBatchesMap.has(bId)) previewBatchesMap.set(bId, []);
+                           previewBatchesMap.get(bId)!.push(s);
+                        });
+
+                        return Array.from(previewBatchesMap.entries()).map(([batchId, batchStudents]) => {
+                           const batchNameStr = metaData.batches?.[batchId] || batchId;
+                           return (
+                              <tbody key={batchId} className="divide-y divide-slate-50">
+                                 <tr className="bg-indigo-50/50">
+                                    <td colSpan={5} className="p-3 text-[10px] font-black tracking-widest text-indigo-800 uppercase text-center focus:bg-indigo-100 shadow-sm">
+                                       {`>>> BATCH: ${batchNameStr} <<<`}
+                                    </td>
+                                 </tr>
+                                 {batchStudents.map(s => {
+                                    // Re-calculate the actual regular records for this specific student matching the export criteria
+                                    const studentRegularRecs = previewRecords.filter(r => {
+                                       if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
+                                       const subj = metaData.subjects[r.subjectId];
+                                       if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
+                                       if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
+                                       return true;
+                                    });
+
+                                    const studentTotalSessions = studentRegularRecs.length;
+                                    const regularAtt = studentRegularRecs.filter(r => r.isPresent).length;
+                                    const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent).length;
+                                    const pct = studentTotalSessions === 0 ? 0 : Math.round(((regularAtt + extraAtt) / studentTotalSessions) * 100);
+
+                                    return (
+                                       <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
+                                          <td className="p-4 font-mono text-[10px] text-slate-400">{s.studentData?.rollNo}</td>
+                                          <td className="p-4">
+                                             <div className="font-black text-slate-800 uppercase tracking-tight text-xs">{s.displayName}</div>
+                                             <div className="text-[9px] font-mono text-slate-900">{s.studentData?.enrollmentId}</div>
+                                          </td>
+                                          <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt}/{studentTotalSessions}</td>
+                                          <td className="p-4 text-center">
+                                             <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black">+{extraAtt}</span>
+                                          </td>
+                                          <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt + extraAtt}/{studentTotalSessions}</td>
+                                          <td className="p-4 text-right">
+                                             <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                {pct}%
+                                              </div>
+                                          </td>
+                                       </tr>
+                                    );
+                                 })}
+                              </tbody>
+                           );
+                        });
+                     })()}
+                  </table>
+               </div>
+            </div>
+         )}
+      </div>
+   );
+};
+
 
 const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData: any }> = ({ branchId, facultyUser, metaData }) => {
    /*
@@ -816,7 +1687,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
          )}
 
          {activeTab === 'MONITOR' && <CoordinatorMarkingMonitor branchId={branchId} metaData={metaData} />}
-         {activeTab === 'REPORTS' && <CoordinatorReport branchId={branchId} branchName={metaData.branches[branchId] || branchId} students={students} metaData={metaData} />}
+         {activeTab === 'REPORTS' && <CoordinatorReport branchId={branchId} branchName={metaData.branches[branchId] || branchId} students={students} metaData={metaData} user={facultyUser} />}
          <Modal
             isOpen={confirmOpen}
             onClose={() => { if (!isSaving) setConfirmOpen(false); }}
@@ -952,6 +1823,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const [marksData, setMarksData] = useState<Record<string, number>>({});
    const [midSemType, setMidSemType] = useState<MidSemType>('MID_SEM_1');
    const [loadingMarks, setLoadingMarks] = useState(false);
+   const [isExporting, setIsExporting] = useState(false);
+   const [exportProgress, setExportProgress] = useState(0);
+   const [exportStatus, setExportStatus] = useState('');
    const [maxMarks, setMaxMarks] = useState(20);
 
    // Conflict State
@@ -1298,6 +2172,147 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          alert("Error saving marks: " + e.message);
       } finally {
          setIsSaving(false);
+      }
+   };
+
+   const handleExportMarks = async () => {
+      if (!selBranchId || !selSubjectId || visibleStudents.length === 0) return;
+      setIsExporting(true);
+      setExportProgress(0);
+      setExportStatus('Analyzing student records...');
+      try {
+         // Simulate progress for local processing
+         setExportProgress(15);
+         setExportStatus('Formatting data...');
+         await new Promise(r => setTimeout(r, 400));
+         const branchName = metaData.branches[selBranchId] || selBranchId;
+      const subject = metaData.subjects[selSubjectId];
+      const examName = midSemType === 'MID_SEM_1' ? 'MST 1' : midSemType === 'MID_SEM_2' ? 'MST 2' : 'Remedial MST';
+
+      const data = visibleStudents.map(s => {
+         const marksValue = marksData[s.uid] ?? 0;
+         const isAbsent = marksValue === -1;
+         const pctValue = maxMarks > 0 ? (isAbsent ? '0.00' : ((marksValue / maxMarks) * 100).toFixed(2)) : '0.00';
+         
+         return {
+            'Student Name': s.displayName,
+            'Enrollment Number': s.studentData?.enrollmentId || '',
+            'Roll Number': s.studentData?.rollNo || '',
+            'Class/Batch': metaData.batches[s.studentData?.batchId || ''] || 'ALL',
+            'Subject Name': subject?.name || '',
+            'Subject Code': subject?.code || '',
+            'Exam': examName,
+            'Marks Obtained': isAbsent ? 'A' : marksValue,
+            'Max Marks': maxMarks,
+            'Result (%)': pctValue + '%',
+            'Faculty Name': user.displayName
+         };
+      });
+
+      setExportProgress(45);
+      setExportStatus('Generating Excel worksheets...');
+      await new Promise(r => setTimeout(r, 500));
+
+      const examTitle = midSemType === 'MID_SEM_1' ? 'MID SEMESTER TEST - I' : midSemType === 'MID_SEM_2' ? 'MID SEMESTER TEST - II' : 'REMEDIAL MST';
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const session = now.getMonth() >= 6 ? `${currentYear}-${(currentYear + 1) % 100}` : `${currentYear - 1}-${currentYear % 100}`;
+      
+      const headerAOA = [
+         ['ACROPOLIS INSTITUTE OF TECHNOLOGY AND RESEARCH'],
+         ['DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING'],
+         [`${examTitle} | SESSION: ${session}`],
+         [`SUBJECT: ${subject?.name.toUpperCase()} (${subject?.code}) | FACULTY: ${user.displayName.toUpperCase()}`],
+         [`BRANCH: ${branchName.toUpperCase()} | DATE: ${now.toLocaleDateString()}`],
+         [] // Spacer
+      ];
+
+      const tableHeaders = Object.keys(data[0] || {});
+      const tableData = data.map(row => Object.values(row));
+      const finalAOA = [...headerAOA, tableHeaders, ...tableData];
+
+      const ws = XLSX.utils.aoa_to_sheet(finalAOA);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "MST Marks");
+
+      // Merges for Header
+      ws['!merges'] = [
+         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+         { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
+         { s: { r: 3, c: 0 }, e: { r: 3, c: tableHeaders.length - 1 } },
+         { s: { r: 4, c: 0 }, e: { r: 4, c: tableHeaders.length - 1 } },
+      ];
+
+      // Auto-size columns
+      const colWidths = tableHeaders.map((_, colIndex) => {
+         let maxLen = tableHeaders[colIndex].length;
+         tableData.forEach(row => {
+            const len = String(row[colIndex] || '').length;
+            if (len > maxLen) maxLen = len;
+         });
+         return { wch: maxLen + 4 };
+      });
+      ws['!cols'] = colWidths;
+
+      // Apply Styling
+      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+         for (let C = range.s.c; C <= range.e.c; ++C) {
+            const addr = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!ws[addr]) continue;
+
+            ws[addr].s = {
+               font: { name: "Calibri", sz: 11 },
+               alignment: { vertical: "center", horizontal: "left" }
+            };
+
+            // Branding Header Styling
+            if (R >= 0 && R <= 4) {
+               ws[addr].s.alignment.horizontal = "center";
+               ws[addr].s.font.bold = true;
+               if (R === 0) ws[addr].s.font.sz = 16;
+               if (R === 1) ws[addr].s.font.sz = 14;
+               continue;
+            }
+
+            // Table Headers (Row 6)
+            if (R === 6) {
+               ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
+               ws[addr].s.font.bold = true;
+               ws[addr].s.border = {
+                  bottom: { style: "thin", color: { rgb: "000000" } },
+                  top: { style: "thin", color: { rgb: "000000" } }
+               };
+            }
+
+            // Marks Column (Index 7: Marks Obtained)
+            if (C === 7 && R > 6) {
+               ws[addr].s.alignment.horizontal = "right";
+               if (ws[addr].v === 'A') {
+                  ws[addr].s.font.color = { rgb: "FF0000" };
+                  ws[addr].s.font.bold = true;
+               }
+            }
+         }
+      }
+
+      setExportProgress(80);
+      setExportStatus('Finalizing branding...');
+      await new Promise(r => setTimeout(r, 600));
+
+      setExportProgress(100);
+      setExportStatus('Download starting...');
+      await new Promise(r => setTimeout(r, 300));
+
+      XLSX.writeFile(wb, `${branchName}_${subject?.code}_${examName}_Marks.xlsx`);
+      } catch (e: any) {
+         alert("Export failed: " + e.message);
+      } finally {
+         setTimeout(() => {
+            setIsExporting(false);
+            setExportProgress(0);
+         }, 800);
       }
    };
 
@@ -2543,20 +3558,34 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                           <div className="text-[10px] font-bold text-slate-900 font-mono">{s.studentData?.enrollmentId} | Sr No: {s.studentData?.rollNo || '#'}</div>
                                        </td>
                                        <td className="py-4 px-6 text-right">
-                                          <div className="flex items-center justify-end gap-2">
-                                             <input
-                                                type="number"
-                                                value={marksData[s.uid] ?? ''}
-                                                min="0"
-                                                max={maxMarks}
-                                                onChange={e => {
-                                                   const val = Math.min(maxMarks, Math.max(0, Number(e.target.value)));
-                                                   setMarksData(prev => ({ ...prev, [s.uid]: val }));
+                                          <div className="flex items-center justify-end gap-3">
+                                             <button
+                                                onClick={() => {
+                                                   const isCurrentlyAbsent = marksData[s.uid] === -1;
+                                                   setMarksData(prev => ({ ...prev, [s.uid]: isCurrentlyAbsent ? 0 : -1 }));
                                                 }}
-                                                placeholder="0"
-                                                className="w-20 text-right px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl font-black text-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                                             />
-                                             <span className="text-[10px] font-black text-slate-300 uppercase">/ {maxMarks}</span>
+                                                className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-sm ${marksData[s.uid] === -1 
+                                                   ? 'bg-rose-600 text-white shadow-rose-100' 
+                                                   : 'bg-white border border-slate-200 text-slate-400 hover:border-rose-200 hover:text-rose-600'}`}
+                                             >
+                                                {marksData[s.uid] === -1 ? 'Absent' : 'Mark Absent'}
+                                             </button>
+                                             <div className="flex items-center gap-2">
+                                                <input
+                                                   type="number"
+                                                   disabled={marksData[s.uid] === -1}
+                                                   value={marksData[s.uid] === -1 ? '' : (marksData[s.uid] ?? '')}
+                                                   min="0"
+                                                   max={maxMarks}
+                                                   onChange={e => {
+                                                      const val = Math.min(maxMarks, Math.max(0, Number(e.target.value)));
+                                                      setMarksData(prev => ({ ...prev, [s.uid]: val }));
+                                                   }}
+                                                   placeholder={marksData[s.uid] === -1 ? 'ABS' : '0'}
+                                                   className={`w-20 text-right px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl font-black focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${marksData[s.uid] === -1 ? 'opacity-30' : 'text-indigo-600'}`}
+                                                />
+                                                <span className="text-[10px] font-black text-slate-300 uppercase">/ {maxMarks}</span>
+                                             </div>
                                           </div>
                                        </td>
                                     </tr>
@@ -2592,13 +3621,32 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                  <span className="text-[10px] font-black uppercase tracking-tight">Saved</span>
                               </div>
                            )}
-                           <button
-                              onClick={handleSaveMarks}
-                              disabled={isSaving || visibleStudents.length === 0}
-                              className="h-14 px-12 w-full md:w-auto bg-indigo-600 text-white rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50"
-                           >
-                              {isSaving ? 'Processing...' : 'Save MST Marks'}
-                           </button>
+                           <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                              <button
+                                 onClick={handleExportMarks}
+                                 disabled={visibleStudents.length === 0}
+                                 className="h-14 px-8 bg-white text-indigo-600 border-2 border-indigo-600 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-indigo-50 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                              >
+                                 {isExporting ? (
+                                    <>
+                                       <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                                       <span>Wait...</span>
+                                    </>
+                                 ) : (
+                                    <>
+                                       <FileDown className="h-4 w-4" />
+                                       <span>Export Marks</span>
+                                    </>
+                                 )}
+                              </button>
+                              <button
+                                 onClick={handleSaveMarks}
+                                 disabled={isSaving || visibleStudents.length === 0}
+                                 className="h-14 px-12 bg-indigo-600 text-white rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50"
+                              >
+                                 {isSaving ? 'Processing...' : 'Save MST Marks'}
+                              </button>
+                           </div>
                         </div>
                      </div>
                   </div>
@@ -2815,605 +3863,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                </div>
             </div>
          </Modal>
-      </div>
-   );
-};
-
-
-const CoordinatorMarkingMonitor: React.FC<{ branchId: string; metaData: any }> = ({ branchId, metaData }) => {
-   const [assignments, setAssignments] = useState<FacultyAssignment[]>([]);
-   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-   const [loading, setLoading] = useState(true);
-   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-
-   useEffect(() => {
-      const load = async () => {
-         setLoading(true);
-         try {
-            const [allAssigns, allAtt] = await Promise.all([
-               db.getAssignments(),
-               db.getDateAttendance(date)
-            ]);
-            setAssignments(allAssigns.filter(a => a.branchId === branchId));
-            setAttendance(allAtt.filter(a => a.branchId === branchId));
-         } finally {
-            setLoading(false);
-         }
-      };
-      load();
-   }, [branchId, date]);
-
-   if (loading) return <div className="p-10 text-center"><Loader2 className="animate-spin h-10 w-10 mx-auto text-indigo-500" /></div>;
-
-   return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
-         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 px-2">
-            <div className="space-y-1">
-               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Faculty Monitor</h3>
-               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Real-time status for {date}</p>
-            </div>
-            <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
-               <Input
-                  type="date"
-                  value={date}
-                  onChange={e => setDate(e.target.value)}
-                  className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl"
-               />
-            </div>
-         </div>
-
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {assignments.length > 0 ? assignments.map(a => {
-               const marked = attendance.some(r => r.subjectId === a.subjectId && r.date === date);
-               const sub = metaData.subjects[a.subjectId];
-               return (
-                  <div key={a.id} className={`group relative p-6 rounded-[2rem] border transition-all duration-300 overflow-hidden ${marked
-                     ? 'bg-white border-emerald-100 shadow-sm hover:shadow-md'
-                     : 'bg-white border-rose-100 shadow-sm hover:shadow-md'
-                     }`}>
-                     {/* Decorative background for status */}
-                     <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 transition-all duration-500 ${marked ? 'bg-emerald-100/50' : 'bg-rose-100/50'
-                        }`} />
-
-                     <div className="relative flex items-center justify-between gap-4">
-                        <div className="min-w-0 space-y-1">
-                           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest">
-                              {sub?.code || 'N/A'}
-                           </div>
-                           <h4 className="font-black text-slate-800 uppercase tracking-tight truncate leading-tight">
-                              {sub?.name || 'Unknown Subject'}
-                           </h4>
-                           <div className="flex items-center gap-2">
-                              <UserIcon className="h-3 w-3 text-slate-400" />
-                              <span className="text-[10px] font-bold text-slate-500">{metaData.faculty[a.facultyId] || 'Unknown Faculty'}</span>
-                           </div>
-                        </div>
-
-                        <div className="flex flex-col items-center gap-2">
-                           <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 ${marked ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-100 rotate-0' : 'bg-rose-500 text-white shadow-lg shadow-rose-100 animate-pulse'
-                              }`}>
-                              {marked ? <CheckCircle2 className="h-7 w-7" strokeWidth={3} /> : <AlertCircle className="h-7 w-7" strokeWidth={3} />}
-                           </div>
-                           <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${marked ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {marked ? 'Complete' : 'Pending'}
-                           </span>
-                        </div>
-                     </div>
-                  </div>
-               );
-            }) : (
-               <div className="col-span-2 flex flex-col items-center justify-center py-20 bg-slate-50/50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
-                  <Eye className="h-10 w-10 text-slate-200 mb-4 animate-pulse" />
-                  <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No assignments tracked for this branch</p>
-               </div>
-            )}
-         </div>
-      </div>
-   );
-};
-
-const CoordinatorReport: React.FC<{ branchId: string; branchName: string; students: User[]; metaData: any }> = ({ branchId, branchName, students, metaData }) => {
-   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-   const [loading, setLoading] = useState(false);
-   const [exportRange, setExportRange] = useState<'TILL_TODAY' | 'CUSTOM'>('TILL_TODAY');
-   const [exportSubjectType, setExportSubjectType] = useState<'ALL' | 'THEORY' | 'LAB'>('ALL');
-   const [exportStartDate, setExportStartDate] = useState('');
-   const [exportEndDate, setExportEndDate] = useState(new Date().toISOString().split('T')[0]);
-   const [showFullPreview, setShowFullPreview] = useState(false);
-   const [filterMode, setFilterMode] = useState<'FULL' | 'FILTERED'>('FULL');
-   const [filterCondition, setFilterCondition] = useState<'LE' | 'GE' | 'LT' | 'GT'>('LE');
-   const [filterValue, setFilterValue] = useState(75);
-
-   useEffect(() => {
-      const load = async () => {
-         setLoading(true);
-         try {
-            setAttendance(await db.getBranchAttendance(branchId));
-         } finally { setLoading(false); }
-      };
-      load();
-   }, [branchId]);
-
-   const previewRecords = useMemo(() => {
-      const start = exportRange === 'CUSTOM' ? exportStartDate : '';
-      const end = exportRange === 'CUSTOM' ? exportEndDate : '';
-      return attendance.filter(r => {
-         const inStart = !start || r.date >= start;
-         const inEnd = !end || r.date <= end;
-         return inStart && inEnd;
-      });
-   }, [attendance, exportRange, exportStartDate, exportEndDate]);
-
-   const previewStats = useMemo(() => {
-      const regularRecs = previewRecords.filter(r => {
-         if (r.subjectId === 'sub_extra') return false;
-         const subj = metaData.subjects[r.subjectId];
-         if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
-         if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
-         return true;
-      });
-      const regularSessions = new Set(regularRecs.map(r => `${r.date}_${r.lectureSlot}_${r.subjectId}`)).size;
-      const totalRecords = previewRecords.length;
-      return { sessions: regularSessions, totalRecords };
-   }, [previewRecords, exportSubjectType, metaData.subjects]);
-
-   const filteredStudents = useMemo(() => {
-      if (filterMode === 'FULL') return students;
-      return students.filter(s => {
-         const relevantRegular = previewRecords.filter(r => {
-            if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
-            const subj = metaData.subjects[r.subjectId];
-            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
-            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
-            return true;
-         });
-         const present = relevantRegular.filter(r => r.isPresent).length;
-         const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
-         if (filterCondition === 'LT') return pct < filterValue;
-         if (filterCondition === 'GT') return pct > filterValue;
-         if (filterCondition === 'LE') return pct <= filterValue;
-         if (filterCondition === 'GE') return pct >= filterValue;
-         return true;
-      });
-   }, [students, previewRecords, previewStats.sessions, filterMode, filterCondition, filterValue, exportSubjectType, metaData.subjects]);
-
-   const averageAttendance = useMemo(() => {
-      if (filteredStudents.length === 0) return '0%';
-      const totalPct = filteredStudents.reduce((acc, s) => {
-         const relevantRegular = previewRecords.filter(r => {
-            if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
-            const subj = metaData.subjects[r.subjectId];
-            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
-            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
-            return true;
-         });
-         const present = relevantRegular.filter(r => r.isPresent).length;
-         return acc + (previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100);
-      }, 0);
-      return Math.round(totalPct / filteredStudents.length) + '%';
-   }, [filteredStudents, previewRecords, previewStats.sessions, exportSubjectType, metaData.subjects]);
-
-   const lowAttendanceCount = useMemo(() => {
-      return filteredStudents.filter(s => {
-         const relevantRegular = previewRecords.filter(r => {
-            if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
-            const subj = metaData.subjects[r.subjectId];
-            if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
-            if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
-            return true;
-         });
-         const present = relevantRegular.filter(r => r.isPresent).length;
-         const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
-         return pct < 75;
-      }).length;
-   }, [filteredStudents, previewRecords, previewStats.sessions, exportSubjectType, metaData.subjects]);
-
-   const executeExport = () => {
-      // 1. Identify relevant subjects (those with at least one record in this branch/period)
-      const regularRecs = previewRecords.filter(r => {
-         if (r.subjectId === 'sub_extra') return false;
-         const subj = metaData.subjects[r.subjectId];
-         if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
-         if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
-         return true;
-      });
-      const uniqueSubjectIds = Array.from(new Set(regularRecs.map(r => r.subjectId))).sort((a, b) => {
-         const sA = metaData.subjects[a];
-         const sB = metaData.subjects[b];
-         const nameA = (sA?.code || sA?.name || '') + (sA?.type || 'theory');
-         const nameB = (sB?.code || sB?.name || '') + (sB?.type || 'theory');
-         return nameA.localeCompare(nameB);
-      });
-
-      const subjectHeaders = uniqueSubjectIds.map(sid => {
-         const s = metaData.subjects[sid];
-         return s ? `${s.code || s.name} (${s.type === 'lab' ? 'Lab' : 'Theory'})` : sid;
-      });
-
-      // Calculate total sessions per subject
-      const subjectSessionCounts: Record<string, number> = {};
-      uniqueSubjectIds.forEach(sid => {
-         const subjectSessions = new Set(regularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
-         subjectSessionCounts[sid] = subjectSessions;
-      });
-
-      const totalRegularSessions = previewStats.sessions;
-
-      const headerInfo = [
-         ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
-         ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
-         [`Attendance Report: ${branchName}`],
-         [`Type: ${exportRange === 'TILL_TODAY' ? 'Till Date' : 'Custom Range'}`],
-         [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
-         [`Generated: ${new Date().toLocaleString()}`],
-         [] // Spacer
-      ];
-
-      // --- STATS CALCULATION ---
-      const totalStudents = filteredStudents.length;
-      const studentStats = filteredStudents.map(s => {
-         const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
-         const studentRegularRecs = studentRecs.filter(r => r.subjectId !== 'sub_extra');
-         const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
-         const totalSessions = studentRegularRecs.length;
-         const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
-         const pct = totalSessions === 0 ? 0 : ((presentCount + extraCount) / totalSessions) * 100;
-         return { name: s.displayName, pct };
-      });
-
-      const detentionCount = studentStats.filter(s => s.pct < 75).length;
-      const classAvg = totalStudents === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / totalStudents);
-
-      const statsInfo = [
-         ["EXECUTIVE SUMMARY", ""],
-         ["Total Strength", totalStudents.toString()],
-         ["Class Average", `${classAvg}%`],
-         ["Detention Count (<75%)", detentionCount.toString()],
-         ["", ""]
-      ];
-
-      const mainHeader = ["Serial No", "Name", "Enrollment ID", ...subjectHeaders, "Extra Lectures", "Total Lectures", "Present Count", "Attendance %"];
-      let csvRows: any[][] = [...headerInfo, ...statsInfo];
-
-      // Group students by Batch
-      const batchesMap = new Map<string, User[]>();
-      filteredStudents.forEach(s => {
-         const bId = s.studentData?.batchId || 'UNASSIGNED';
-         if (!batchesMap.has(bId)) batchesMap.set(bId, []);
-         batchesMap.get(bId)!.push(s);
-      });
-
-      Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
-         const batchNameStr = metaData.batches?.[batchId] || batchId;
-
-         // Find all records that apply to this batch specifically or to the whole class
-         const batchRegularRecs = regularRecs.filter(r => r.batchId === batchId || r.batchId === 'ALL');
-
-         const batchSubjectSessionCounts: Record<string, number> = {};
-         uniqueSubjectIds.forEach(sid => {
-            const batchSubjectSessions = new Set(batchRegularRecs.filter(r => r.subjectId === sid).map(r => `${r.date}_${r.lectureSlot}`)).size;
-            batchSubjectSessionCounts[sid] = batchSubjectSessions;
-         });
-
-         // Add Batch Spacing and Headers
-         csvRows.push([]);
-         csvRows.push([`>>> BATCH: ${batchNameStr} <<<`]);
-         csvRows.push(mainHeader);
-
-         const batchTotalLectures = Object.values(batchSubjectSessionCounts).reduce((acc, curr) => acc + curr, 0);
-         const batchTotalsLabelRow = ["", "Total Lectures Held", "", ...uniqueSubjectIds.map(sid => batchSubjectSessionCounts[sid].toString()), "", batchTotalLectures.toString(), "VARIES", ""];
-         csvRows.push(batchTotalsLabelRow);
-
-         const batchDataRows = batchStudents.map(s => {
-            const studentRecs = previewRecords.filter(r => r.studentId === s.uid);
-            const studentRegularRecs = regularRecs.filter(r => r.studentId === s.uid);
-            const studentTotalSessions = studentRegularRecs.length; // use accurate logic
-            const presentCount = studentRegularRecs.filter(r => r.isPresent).length;
-            const extraCount = studentRecs.filter(r => r.subjectId === 'sub_extra' && r.isPresent).length;
-
-            const subjectAttendance = uniqueSubjectIds.map(sid => {
-               return studentRegularRecs.filter(r => r.subjectId === sid && r.isPresent).length.toString();
-            });
-
-            const pct = studentTotalSessions === 0 ? 0 : Math.round(((presentCount + extraCount) / studentTotalSessions) * 100);
-
-            return [
-               s.studentData?.rollNo || '',
-               s.displayName,
-               s.studentData?.enrollmentId || '',
-               ...subjectAttendance,
-               extraCount.toString(),
-               studentTotalSessions.toString(),
-               (presentCount + extraCount).toString(),
-               `${pct}%`
-            ];
-         });
-
-         csvRows = csvRows.concat(batchDataRows);
-         csvRows.push([]); // trailing spacer
-         csvRows.push([]);
-      });
-
-      // Create Workbook
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(csvRows);
-
-      // --- ADVANCED STYLING & FORMATTING ---
-      // 1. Merge Main Headers
-      ws['!merges'] = [
-         { s: { r: 0, c: 0 }, e: { r: 0, c: mainHeader.length - 1 } }, // Main Title
-         { s: { r: 1, c: 0 }, e: { r: 1, c: mainHeader.length - 1 } }, // Dept
-         { s: { r: 2, c: 0 }, e: { r: 2, c: mainHeader.length - 1 } }  // Branch
-      ];
-
-      // 2. Auto-adjust column widths
-      const colWidths = mainHeader.map((_, colIndex) => {
-         let maxLen = 10;
-         csvRows.forEach((row, rowIndex) => {
-            if (rowIndex < 7) return; // Skip big title merges for width calculation
-            const val = row[colIndex];
-            if (val) {
-               const len = val.toString().length;
-               if (len > maxLen) maxLen = len;
-            }
-         });
-         return { wch: maxLen + 4 };
-      });
-      ws['!cols'] = colWidths;
-
-      // 3. Frozen Panes
-      ws['!views'] = [{ state: 'frozen', xSplit: 4, ySplit: 14 }];
-
-      // --- 5. Apply Colors & Styles ---
-      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-      for (let R = range.s.r; R <= range.e.r; ++R) {
-         for (let C = range.s.c; C <= range.e.c; ++C) {
-            const addr = XLSX.utils.encode_cell({ r: R, c: C });
-            if (!ws[addr]) continue;
-
-            ws[addr].s = {
-               font: { name: "Calibri", sz: 10 },
-               alignment: { vertical: "center", horizontal: "left", wrapText: true },
-               border: {
-                  top: { style: "thin", color: { rgb: "CBD5E1" } },
-                  bottom: { style: "thin", color: { rgb: "CBD5E1" } },
-                  left: { style: "thin", color: { rgb: "CBD5E1" } },
-                  right: { style: "thin", color: { rgb: "CBD5E1" } }
-               }
-            };
-
-            // Main Headers
-            if (R >= 0 && R <= 2) {
-               ws[addr].s.fill = { fgColor: { rgb: "0F172A" } };
-               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 12 };
-               ws[addr].s.alignment.horizontal = "center";
-            }
-
-            const rowVal0 = csvRows[R]?.[0]?.toString() || '';
-            const rowVal1 = csvRows[R]?.[1]?.toString() || '';
-
-            // Batch Title Row
-            if (rowVal0.startsWith('>>> BATCH')) {
-               ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
-               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
-               ws[addr].s.alignment.horizontal = "center";
-            }
-
-            // Table Header
-            if (rowVal0 === 'Serial No') {
-               ws[addr].s.fill = { fgColor: { rgb: "334155" } };
-               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
-               ws[addr].s.alignment.horizontal = "center";
-            }
-
-            // Totals Row
-            if (rowVal1 === 'Total Lectures Held') {
-               ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
-               ws[addr].s.font = ws[addr].s.font || {};
-               ws[addr].s.font.bold = true;
-            }
-
-            // Status column has been removed
-         }
-      }
-
-      // Merge batch title rows across the whole table
-      if (!ws['!merges']) ws['!merges'] = [];
-      csvRows.forEach((row, R) => {
-         if (row[0]?.toString().startsWith('>>> BATCH')) {
-            ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: mainHeader.length - 1 } });
-         }
-      });
-
-      XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-      XLSX.writeFile(wb, `${branchName}_Summary_Report.xlsx`);
-   };
-
-   return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
-         <div className="flex items-center justify-between pb-4 px-2">
-            <div className="flex items-center gap-3">
-               <div className="p-3 bg-indigo-50 rounded-[1.2rem]"><Layers className="h-5 w-5 text-indigo-600" /></div>
-               <div>
-                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Class Reports</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Export branch analytics</p>
-               </div>
-            </div>
-            <div className="flex gap-4">
-               <div className="text-right">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Classes</div>
-                  <div className="text-xl font-black text-indigo-600 leading-none">{previewStats.sessions}</div>
-               </div>
-               <div className="text-right">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Students</div>
-                  <div className="text-xl font-black text-indigo-600 leading-none">{filteredStudents.length}</div>
-               </div>
-            </div>
-         </div>
-
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
-               <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time range</label>
-                  <div className="grid grid-cols-2 gap-3">
-                     <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Session</button>
-                     <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Range</button>
-                  </div>
-                  {exportRange === 'CUSTOM' && (
-                     <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
-                        <Input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
-                        <Input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
-                     </div>
-                  )}
-               </div>
-
-               <div className="space-y-4 pt-4 border-t border-slate-50">
-                  <div className="space-y-3">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject Type</label>
-                     <div className="grid grid-cols-3 gap-3">
-                        <button onClick={() => setExportSubjectType('ALL')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'ALL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>All</button>
-                        <button onClick={() => setExportSubjectType('THEORY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'THEORY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Theory</button>
-                        <button onClick={() => setExportSubjectType('LAB')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'LAB' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Lab</button>
-                     </div>
-                  </div>
-               </div>
-
-               <div className="space-y-4 pt-4 border-t border-slate-50">
-                  <div className="space-y-3">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendance Scope</label>
-                     <div className="grid grid-cols-2 gap-3">
-                        <button onClick={() => setFilterMode('FULL')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${filterMode === 'FULL' ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg translate-y-[-2px]' : 'bg-slate-50 text-slate-500 border-slate-50 hover:bg-slate-100'}`}>Full Class</button>
-                        <button onClick={() => setFilterMode('FILTERED')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${filterMode === 'FILTERED' ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg translate-y-[-2px]' : 'bg-slate-50 text-slate-500 border-slate-50 hover:bg-slate-100'}`}>Filtered</button>
-                     </div>
-                  </div>
-                  {filterMode === 'FILTERED' && (
-                     <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
-                        <select value={filterCondition} onChange={e => setFilterCondition(e.target.value as any)} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm">
-                           <option value="GE">Above or Equal (&ge;)</option>
-                           <option value="LE">Below or Equal (&le;)</option>
-                           <option value="GT">Strictly Above (&gt;)</option>
-                           <option value="LT">Strictly Below (&lt;)</option>
-                        </select>
-                        <div className="relative">
-                           <input type="number" value={filterValue} onChange={e => setFilterValue(Number(e.target.value))} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
-                           <span className="absolute right-4 top-3 text-[10px] text-slate-400 font-black">%</span>
-                        </div>
-                     </div>
-                  )}
-               </div>
-            </div>
-
-            <div className="flex flex-col justify-between gap-4">
-               <div className="bg-indigo-50/50 p-6 rounded-[2rem] border border-indigo-100/30 flex-1">
-                  <div className="flex items-center gap-3 mb-4">
-                     <div className="p-2 bg-indigo-100 rounded-xl"><Activity className="h-4 w-4 text-indigo-600" /></div>
-                     <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Report Insights</span>
-                  </div>
-                  <div className="space-y-3">
-                     <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-slate-500">Average Attendance</span>
-                        <span className="font-black text-indigo-600">{averageAttendance}</span>
-                     </div>
-                     <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-slate-500 font-medium text-slate-500">Low Attendance {"(<75%)"}</span>
-                        <span className="font-black text-rose-500">{lowAttendanceCount} Students</span>
-                     </div>
-                  </div>
-               </div>
-
-               <div className="flex gap-3">
-                  <Button onClick={() => setShowFullPreview(!showFullPreview)} variant="secondary" className="flex-1 h-16 rounded-3xl font-black uppercase tracking-widest text-[10px]">
-                     {showFullPreview ? <X className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-                     {showFullPreview ? 'Close' : 'Preview'}
-                  </Button>
-                  <Button onClick={executeExport} className="flex-[2] h-16 bg-indigo-900 text-white rounded-3xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                     <FileDown className="h-4 w-4 mr-2" /> Download Report
-                  </Button>
-               </div>
-            </div>
-         </div>
-
-         {showFullPreview && (
-            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
-               <div className="p-6 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
-                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                     <Layers className="h-4 w-4 text-indigo-500" />
-                     Data Preview
-                  </h4>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{filteredStudents.length} Records Shown</span>
-               </div>
-               <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                     <thead>
-                        <tr className="border-b border-slate-50">
-                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Sr No</th>
-                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Name</th>
-                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Regular (P/T)</th>
-                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Extra</th>
-                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Total</th>
-                           <th className="p-4 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Percentage</th>
-                        </tr>
-                     </thead>
-                     {(() => {
-                        const previewBatchesMap = new Map<string, User[]>();
-                        filteredStudents.forEach(s => {
-                           const bId = s.studentData?.batchId || 'UNASSIGNED';
-                           if (!previewBatchesMap.has(bId)) previewBatchesMap.set(bId, []);
-                           previewBatchesMap.get(bId)!.push(s);
-                        });
-
-                        return Array.from(previewBatchesMap.entries()).map(([batchId, batchStudents]) => {
-                           const batchNameStr = metaData.batches?.[batchId] || batchId;
-                           return (
-                              <tbody key={batchId} className="divide-y divide-slate-50">
-                                 <tr className="bg-indigo-50/50">
-                                    <td colSpan={5} className="p-3 text-[10px] font-black tracking-widest text-indigo-800 uppercase text-center focus:bg-indigo-100 shadow-sm">
-                                       {`>>> BATCH: ${batchNameStr} <<<`}
-                                    </td>
-                                 </tr>
-                                 {batchStudents.map(s => {
-                                    // Re-calculate the actual regular records for this specific student matching the export criteria
-                                    const studentRegularRecs = previewRecords.filter(r => {
-                                       if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
-                                       const subj = metaData.subjects[r.subjectId];
-                                       if (exportSubjectType === 'THEORY' && subj?.type === 'lab') return false;
-                                       if (exportSubjectType === 'LAB' && subj?.type !== 'lab') return false;
-                                       return true;
-                                    });
-
-                                    const studentTotalSessions = studentRegularRecs.length;
-                                    const regularAtt = studentRegularRecs.filter(r => r.isPresent).length;
-                                    const extraAtt = previewRecords.filter(r => r.studentId === s.uid && r.subjectId === 'sub_extra' && r.isPresent).length;
-                                    const pct = studentTotalSessions === 0 ? 0 : Math.round(((regularAtt + extraAtt) / studentTotalSessions) * 100);
-
-                                    return (
-                                       <tr key={s.uid} className="hover:bg-slate-50/50 transition-colors">
-                                          <td className="p-4 font-mono text-[10px] text-slate-400">{s.studentData?.rollNo}</td>
-                                          <td className="p-4">
-                                             <div className="font-black text-slate-800 uppercase tracking-tight text-xs">{s.displayName}</div>
-                                             <div className="text-[9px] font-mono text-slate-900">{s.studentData?.enrollmentId}</div>
-                                          </td>
-                                          <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt}/{studentTotalSessions}</td>
-                                          <td className="p-4 text-center">
-                                             <span className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black">+{extraAtt}</span>
-                                          </td>
-                                          <td className="p-4 text-center font-black text-indigo-600 text-xs">{regularAtt + extraAtt}/{studentTotalSessions}</td>
-                                          <td className="p-4 text-right">
-                                             <div className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black tracking-widest ${pct < 75 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                                                {pct}%
-                                             </div>
-                                          </td>
-                                       </tr>
-                                    );
-                                 })}
-                              </tbody>
-                           );
-                        });
-                     })()}
-                  </table>
-               </div>
-            </div>
-         )}
-      </div>
+        </div>
    );
 };

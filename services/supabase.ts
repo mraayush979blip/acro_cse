@@ -3,11 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // --- 3rd Year (existing env vars — UNCHANGED, no Vercel changes needed) ---
 const get3rdYearUrl = () => {
-    const isVercel = typeof window !== 'undefined' &&
-        (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('localhost'));
-    return isVercel
-        ? `${window.location.origin}/api/supabase`
-        : (import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co');
+    return import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
 };
 const KEY_3RD = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-key';
 

@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
-import { getYearMode, setYearMode } from '../services/supabase';
-import { AcropolisLogo, Modal, Button, AboutDeveloperModal } from './UI';
+import { supabase, getYearMode, setYearMode } from '../services/supabase';
+import { AcropolisLogo, Modal, Button, AboutDeveloperModal, ExportProgressModal } from './UI';
 
 
 interface LayoutProps {
@@ -132,8 +132,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 10000); // Poll every 10s
-    return () => clearInterval(interval);
+
+    // Listen for REALTIME changes to notifications table
+    const channel = supabase
+      .channel('notifications_live')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `to_user_id=eq.${user.uid}`
+        },
+        () => {
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user.uid]);
 
   useEffect(() => {
@@ -405,6 +424,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
         {children}
       </main>
 
+
+      <footer className="py-6 border-t border-slate-200 bg-white/50 backdrop-blur-sm">
+        <div className="container mx-auto px-4 text-center">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+            <span>Developed by</span>
+            <a 
+              href="https://www.linkedin.com/in/aayush-sharma-2013d" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-indigo-600 hover:text-indigo-800 underline underline-offset-4 decoration-2 decoration-indigo-200 hover:decoration-indigo-600 transition-all"
+            >
+              Aayush Sharma
+            </a>
+          </p>
+        </div>
+      </footer>
 
       <InstallAppModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallClick} canInstall={canInstall} />
       <AboutDeveloperModal isOpen={isDeveloperModalOpen} onClose={() => setIsDeveloperModalOpen(false)} />

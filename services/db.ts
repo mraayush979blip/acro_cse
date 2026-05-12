@@ -71,7 +71,7 @@ interface IDataService {
   // Marks
   getMarks: (branchId: string, batchId: string, subjectId: string, midSemType: MidSemType) => Promise<Mark[]>;
   getStudentMarks: (studentId: string) => Promise<Mark[]>;
-  getBranchMarks: (branchId: string, midSemType: MidSemType) => Promise<Mark[]>;
+  getMarksByStudents: (studentIds: string[], midSemType: MidSemType) => Promise<Mark[]>;
   saveMarks: (marks: Omit<Mark, 'id' | 'createdAt' | 'updatedAt'>[]) => Promise<void>;
 
   // Settings
@@ -964,11 +964,7 @@ class SupabaseService implements IDataService {
     }));
   }
 
-  async getBranchMarks(branchId: string, midSemType: MidSemType): Promise<Mark[]> {
-    const { data: students, error: studentError } = await supabase.from('profiles').select('id').eq('role', UserRole.STUDENT).eq('branch_id', branchId);
-    if (studentError) throw studentError;
-    const studentIds = students.map(s => s.id);
-    if (studentIds.length === 0) return [];
+  async getMarksByStudents(studentIds: string[], midSemType: MidSemType): Promise<Mark[]> {
     const { data, error } = await supabase.from('marks').select('*').in('student_id', studentIds).eq('mid_sem_type', midSemType);
     if (error) throw error;
     return data.map(m => ({
@@ -1608,11 +1604,9 @@ class MockService implements IDataService {
     return all.filter(m => m.studentId === studentId);
   }
 
-  async getBranchMarks(branchId: string, midSemType: MidSemType): Promise<Mark[]> {
+  async getMarksByStudents(studentIds: string[], midSemType: MidSemType): Promise<Mark[]> {
     const all = this.load('ams_marks', []) as Mark[];
-    const students = await this.getStudents(branchId);
-    const studentIds = new Set(students.map(s => s.uid));
-    return all.filter(m => studentIds.has(m.studentId) && m.midSemType === midSemType);
+    return all.filter(m => studentIds.includes(m.studentId) && m.midSemType === midSemType);
   }
 
   async saveMarks(marks: Omit<Mark, 'id' | 'createdAt' | 'updatedAt'>[]): Promise<void> {

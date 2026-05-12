@@ -180,6 +180,19 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </button>
         </div>
       </Card>
+      <footer className="fixed bottom-6 w-full text-center pointer-events-none">
+        <p className="text-[10px] font-black text-slate-400/60 uppercase tracking-[0.2em] flex items-center justify-center gap-2 pointer-events-auto">
+          <span>Developed by</span>
+          <a 
+            href="https://www.linkedin.com/in/aayush-sharma-2013d" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-indigo-600/80 hover:text-indigo-800 underline underline-offset-4 decoration-2 decoration-indigo-200/50 hover:decoration-indigo-600 transition-all font-black"
+          >
+            Aayush Sharma
+          </a>
+        </p>
+      </footer>
       <AboutDeveloperModal isOpen={isDevModalOpen} onClose={() => setIsDevModalOpen(false)} />
     </div>
   );
