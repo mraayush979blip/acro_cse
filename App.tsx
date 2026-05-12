@@ -17,6 +17,18 @@ const BugReport = lazy(() => import('./views/BugReport').then(m => ({ default: m
 import { Modal, Input, Button, AcropolisLogo } from './components/UI';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Analytics } from '@vercel/analytics/react';
+import { ErrorBoundary } from './components/ErrorBoundary';
+
+// Global error handlers for diagnostics
+if (typeof window !== 'undefined') {
+  window.onerror = (msg, url, lineNo, columnNo, error) => {
+    console.error('Fatal error caught:', msg, { url, lineNo, columnNo, error });
+    return false; // Let browser handle it too
+  };
+  window.onunhandledrejection = (event) => {
+    console.error('Unhandled Promise Rejection:', event.reason);
+  };
+}
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -157,8 +169,7 @@ const App: React.FC = () => {
   );
 
   return (
-    <>
-
+    <ErrorBoundary>
       <Routes>
         <Route path="/login" element={
           user ? <Navigate to={getDashboardPath(user.role)} replace /> : <Login onLogin={handleLogin} />
@@ -296,7 +307,7 @@ const App: React.FC = () => {
           </div>
         </Modal>
       )}
-    </>
+    </ErrorBoundary>
   );
 };
 

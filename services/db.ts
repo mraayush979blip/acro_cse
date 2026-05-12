@@ -14,7 +14,7 @@ interface IDataService {
   addBranch: (name: string) => Promise<void>;
   deleteBranch: (id: string) => Promise<void>;
 
-  getBatches: (branchId: string) => Promise<Batch[]>;
+  getBatches: (branchId?: string) => Promise<Batch[]>;
   addBatch: (name: string, branchId: string) => Promise<void>;
   deleteBatch: (id: string) => Promise<void>;
 
@@ -298,9 +298,12 @@ class SupabaseService implements IDataService {
     this._invalidate('meta_branches');
   }
 
-  async getBatches(branchId: string): Promise<Batch[]> {
-    return this._withCache(`meta_batches_${branchId}`, async () => {
-      const { data, error } = await supabase.from('batches').select('*').eq('branch_id', branchId);
+  async getBatches(branchId?: string): Promise<Batch[]> {
+    const cacheKey = branchId ? `meta_batches_${branchId}` : 'meta_batches_ALL';
+    return this._withCache(cacheKey, async () => {
+      let q = supabase.from('batches').select('*');
+      if (branchId) q = q.eq('branch_id', branchId);
+      const { data, error } = await q;
       if (error) throw error;
       return data.map(b => ({
         id: b.id,
@@ -1308,10 +1311,11 @@ class MockService implements IDataService {
     this.save('ams_branches', b.filter((x: any) => x.id !== id));
   }
 
-  async getBatches(branchId: string) {
+  async getBatches(branchId?: string) {
     await this.simulateDelay();
     const batches = this.load('ams_batches', SEED_BATCHES) as Batch[];
-    return batches.filter(b => b.branchId === branchId);
+    if (branchId) return batches.filter(b => b.branchId === branchId);
+    return batches;
   }
   async addBatch(name: string, branchId: string) {
     const batches = this.load('ams_batches', SEED_BATCHES);

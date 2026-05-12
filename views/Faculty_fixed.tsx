@@ -1780,15 +1780,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    }, [urlBranchId, urlID2, sortedAssignments]);
 
    const setSelection = (brid: string, sid: string) => {
-      // Auto-populate batches when subject is selected to ensure student list appears
-      if (brid && sid) {
-         const rel = assignments.filter(a => a.branchId === brid && a.subjectId === sid);
-         const batchesToSelect = rel.map(a => a.batchId);
-         setSelectedMarkingBatches(batchesToSelect);
-      } else {
-         setSelectedMarkingBatches([]);
-      }
-
       const currentPath = location.pathname;
       let targetPath = `/faculty/${activeTab.toLowerCase()}`;
 
@@ -2512,11 +2503,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       setShowExportModal(true);
    };
 
-   const executeExport = async () => {
-      setLoading(true);
-      setProgress(0);
-      setStatus('Initializing export...');
-      await new Promise(r => setTimeout(r, 400));
+   const executeExport = () => {
       let recordsToExport = allClassRecords;
       const start = exportRange === 'CUSTOM' ? exportStartDate : '';
       const end = exportRange === 'CUSTOM' ? exportEndDate : '';
@@ -2538,9 +2525,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       const subjectCode = subjectDetail?.code || '';
       const facultyName = user.displayName;
 
-      setProgress(20);
-      setStatus('Processing attendance records...');
-      await new Promise(r => setTimeout(r, 50));
       const lookupMap = new Map<string, AttendanceRecord>();
       recordsToExport.forEach(r => {
          const key = `${r.studentId}_${r.date}_${r.lectureSlot || 1}`;
@@ -2585,9 +2569,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          });
       });
 
-      setProgress(50);
-      setStatus('Generating analytics...');
-      await new Promise(r => setTimeout(r, 50));
       const stats = sortedStudents.map(s => {
          const aggregated = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
          return { name: s.displayName, pct: aggregated.total === 0 ? 0 : (aggregated.present / aggregated.total) * 100 };
@@ -2646,9 +2627,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          excelRows.push([]);
       });
 
-      setProgress(85);
-      setStatus('Applying institutional branding...');
-      await new Promise(r => setTimeout(r, 500));
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(excelRows);
 
@@ -2744,18 +2722,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       });
 
       XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-      
-      setProgress(100);
-      setStatus('Starting download...');
-      await new Promise(r => setTimeout(r, 500));
-      
       XLSX.writeFile(wb, `${subjectCode}_${branchName}_Report.xlsx`);
-      
-      setTimeout(() => {
-         setLoading(false);
-         setProgress(0);
-         setShowExportModal(false);
-      }, 800);
+      setShowExportModal(false);
    };
 
    const downloadCSV = (rows: string[][], filename: string) => {
@@ -3102,7 +3070,18 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      </div>
 
                      {/* Mobile Student List (Cards) */}
-                     <div className={`md:hidden space-y-3 pb-20 relative transition-all duration-300`}>
+                     <div className={`md:hidden space-y-3 pb-20 relative transition-all duration-300 ${selectedSlots.length === 0 ? 'opacity-40 grayscale-[0.5] pointer-events-none select-none' : ''}`}>
+                        {selectedSlots.length === 0 && (
+                           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-10 text-center pointer-events-none">
+                              <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl space-y-4">
+                                 <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-500">
+                                    <RefreshCw className="h-8 w-8 animate-spin-slow" />
+                                 </div>
+                                 <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Marking Register Locked</p>
+                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Select at least one slot<br />above to unlock students</p>
+                              </div>
+                           </div>
+                        )}
                         {loadingStudents ? (
                            Array.from({ length: 5 }).map((_, i) => (
                               <div key={i} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
@@ -3165,7 +3144,18 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      </div>
 
                      {/* Desktop Student List (Table) */}
-                     <div className={`hidden md:block bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden relative transition-all duration-300`}>
+                     <div className={`hidden md:block bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden relative transition-all duration-300 ${selectedSlots.length === 0 ? 'opacity-40 grayscale-[0.5] pointer-events-none select-none' : ''}`}>
+                        {selectedSlots.length === 0 && (
+                           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-10 text-center pointer-events-none">
+                              <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2.5rem] border border-slate-200 shadow-2xl space-y-4">
+                                 <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-500">
+                                    <RefreshCw className="h-8 w-8 animate-spin-slow" />
+                                 </div>
+                                 <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Marking Register Locked</p>
+                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Select at least one slot<br />above to unlock students</p>
+                              </div>
+                           </div>
+                        )}
                         <table className="w-full text-left border-collapse">
                            <thead className="bg-slate-50 border-b border-slate-200">
                               <tr>
@@ -3671,8 +3661,6 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                metaData={metaData}
             />
          )}
-
-         <ExportProgressModal isOpen={isExporting} progress={exportProgress} status={exportStatus} />
 
 
          {/* Confirmation / Conflict Modal */}
