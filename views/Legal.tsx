@@ -127,7 +127,7 @@ export const LegalView: React.FC = () => {
                         <div className="border-b border-slate-100 pb-6 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div>
                                 <h3 className="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tighter flex items-center justify-center sm:justify-start gap-3">
-                                    <Book className="h-8 w-8 text-indigo-600" />
+                                    < Book className="h-8 w-8 text-indigo-600" />
                                     {lang === 'en' ? 'User Manual' : 'Margdarshika'}
                                 </h3>
                                 <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mt-2">
@@ -201,16 +201,16 @@ export const LegalView: React.FC = () => {
                 <div className="relative z-10 flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                     <Button 
                         onClick={() => window.open("https://wa.me/916266439162", "_blank")}
-                        className="w-full sm:w-auto h-14 px-8 bg-emerald-600 hover:bg-emerald-500 text-white border-none flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-emerald-900/20 active:scale-95"
+                        className="group w-full sm:w-auto h-14 px-8 bg-emerald-600 hover:bg-emerald-500 text-white border-none flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-emerald-900/20 active:scale-95"
                     >
-                        <MessageSquare className="h-4 w-4" />
+                        <MessageSquare className="h-4 w-4 transition-transform duration-300 group-hover:scale-125 group-hover:-rotate-12" />
                         WhatsApp
                     </Button>
                     <Button 
                         onClick={() => window.open("https://itsaayushsharma.vercel.app/", "_blank")}
-                        className="w-full sm:w-auto h-14 px-8 bg-white/10 hover:bg-white hover:text-slate-900 text-white border border-white/20 flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all backdrop-blur-md active:scale-95"
+                        className="group w-full sm:w-auto h-14 px-8 bg-white/10 hover:bg-white hover:text-slate-900 text-white border border-white/20 flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all backdrop-blur-md active:scale-95"
                     >
-                        <ExternalLink className="h-4 w-4" />
+                        <ExternalLink className="h-4 w-4 transition-transform duration-300 group-hover:scale-125 group-hover:rotate-12" />
                         Portfolio
                     </Button>
                 </div>
