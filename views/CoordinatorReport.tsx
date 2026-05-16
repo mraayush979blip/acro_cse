@@ -434,7 +434,7 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
                                 setStatus('Preparing data for worker...');
 
                                 const usedSubjectIds = Array.from(new Set(marks.map(m => m.subjectId)));
-                                const branchSubjects = usedSubjectIds.map(sid => {
+                                const branchSubjects = (usedSubjectIds as string[]).map(sid => {
                                    const sub = metaData.subjects[sid];
                                    return sub ? { ...sub, id: sid } : null;
                                 }).filter(Boolean) as any[];

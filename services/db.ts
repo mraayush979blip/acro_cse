@@ -1455,7 +1455,7 @@ class MockService implements IDataService {
     this.save('ams_batches', b.filter((x: any) => x.id !== id));
   }
 
-  async getStudents(branchId: string, batchId?: string) {
+  async getStudents(branchId: string, batchId?: string): Promise<User[]> {
     const users = this.load('ams_users', SEED_USERS) as User[];
     let filtered = users.filter(u => u.role === UserRole.STUDENT && u.studentData?.branchId === branchId);
     if (batchId && batchId !== 'ALL') {
@@ -1631,7 +1631,7 @@ class MockService implements IDataService {
     return filtered;
   }
 
-  async getStudentsByBranch(branchId: string) {
+  async getStudentsByBranch(branchId: string): Promise<User[]> {
     return this.getStudents(branchId);
   }
 
