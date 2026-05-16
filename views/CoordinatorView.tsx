@@ -1,3 +1,4 @@
+// Coordinator View for managing and reporting branch attendance
 import React, { useEffect, useState } from 'react';
 import { db } from '../services/db';
 import { User, FacultyAssignment, AttendanceRecord, Subject } from '../types';
@@ -534,3 +535,4 @@ export const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; me
       </div>
    );
 };
+

@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Book, ShieldCheck, ArrowLeft, Info, ExternalLink, Languages, MessageSquare } from 'lucide-react';
+import { Book, ShieldCheck, ArrowLeft, ExternalLink, Languages, MessageSquare, Scale, Users, LayoutDashboard, Database, Smartphone, Zap } from 'lucide-react';
 import { Card, Button } from '../components/UI';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,84 +8,35 @@ export const LegalView: React.FC = () => {
     const [lang, setLang] = useState<'en' | 'hi'>('en');
     const navigate = useNavigate();
 
-    const content = {
-        en: {
-            manual: `
-# 📘 ACROPOLIS AMS - FULL USER MANUAL
-**Version 2.5 | Enterprise Edition**
+    const renderManualItem = (icon: any, title: string, desc: string) => (
+        <div className="flex gap-4 p-5 bg-slate-50 rounded-3xl border border-slate-100 hover:border-indigo-100 transition-colors group">
+            <div className="w-10 h-10 rounded-2xl bg-white border border-slate-200 text-indigo-600 flex flex-col items-center justify-center shadow-sm group-hover:scale-110 transition-transform flex-shrink-0">
+                {icon}
+            </div>
+            <div>
+                <h4 className="font-black text-slate-800 uppercase tracking-tight text-sm mb-1">{title}</h4>
+                <p className="text-slate-600 text-sm leading-relaxed">{desc}</p>
+            </div>
+        </div>
+    );
 
-## 1. FACULTY DASHBOARD (Main Actions)
-- **Select Slot (L1-L7)**: You MUST select a lecture slot before marking. Pulsing background means active.
-- **Mark Button (Green/Red)**: Click student name card to toggle. Green = Present, Red = Absent.
-- **Save Attendance**: Submits data to Supabase. Logs the exact time and your ID.
-- **Request Overwrite**: If another teacher marked the slot, this sends a request to them.
-- **Export Report**: Downloads current view as Excel.
-
-## 2. ATTENDANCE HISTORY
-- **View Date Filter**: Select a specific date to view past records.
-- **Share Attendance**: Generates a WhatsApp-ready summary. Automatically lists multiple slots if conducted.
-- **Delete Record**: Moves record to Recycle Bin (stays for 12 hours).
-
-## 3. COORDINATOR & ADMIN
-- **MST Marks Summary**: Compares marks side-by-side for the whole branch.
-- **Import Students**: Upload CSV/Excel to bulk-create student profiles.
-- **Recycle Bin**: Restore deleted records within 12h. Requires permission if slot is re-occupied.
-- **Audit Trail**: View full system logs (Who, What, When).
-
-## 4. SYSTEM STABILITY
-- **PWA Install**: Tap "Install App" for a native, lag-free experience.
-- **Error Screen**: Use "Reload Application" to clear cache and fix sync issues.
-            `,
-            license: `
-# ⚖️ PROPRIETARY LICENSE
-**Copyright (c) 2026 Aayush Sharma.**
-
-1. **Ownership**: Source code belongs to Aayush Sharma.
-2. **Usage**: Restricted to Acropolis Institute internal use.
-3. **Redistribution**: Strictly Prohibited.
-4. **Modifications**: Requires developer consent.
-            `
-        },
-        hi: {
-            manual: `
-# 📘 ACROPOLIS AMS - FULL USER MANUAL (HINGLISH)
-**Sabhi buttons aur features ki jaankari**
-
-## 1. FACULTY DASHBOARD (Kaise use karein)
-- **Select Slot (L1-L7)**: Attendance mark karne se pehle Lecture Slot select karna zaroori hai. Active slot chamkega (pulse karega).
-- **Marking**: Student card par tap karein. Green matlab Present, Red matlab Absent.
-- **Save Attendance**: Isse data save ho jayega aur background mein 'Audit Log' ban jayega.
-- **Overwrite Request**: Agar kisi aur teacher ne pehle se wahan attendance bhar di hai, toh aap unhe request bhej sakte hain.
-
-## 2. HISTORY AUR SHARING
-- **Date Filter**: Puraani attendance dekhne ke liye date select karein.
-- **Share Attendance**: WhatsApp par summary bhejta hai. Agar din mein 2 slots liye hain, toh dono ki list dikhayega.
-- **Delete Record**: Attendance delete hone par Recycle Bin mein jati hai (12 ghante tak).
-
-## 3. ADMIN AUR SAFETY
-- **Recycle Bin**: Galti se delete hui attendance yahan se 'Restore' karein.
-- **Audit Trail**: Admin dekh sakta hai ki kisne, kab aur kya badlav kiye.
-- **Excel Export**: Report ko Excel file mein download karne ke liye.
-
-## 4. APP INSTALLATION
-- **Install App**: Isse app native app ki tarah chalega aur fast load hoga.
-            `,
-            license: `
-# ⚖️ PROPRIETARY LICENSE
-**Copyright (c) 2026 Aayush Sharma.**
-
-1. **Ownership**: Ye code Aayush Sharma ki property hai.
-2. **Usage**: Sirf Acropolis Institute ke liye allowed hai.
-3. **Resell**: Isse kisi aur ko bechna ya share karna allowed nahi hai.
-            `
-        }
-    };
+    const renderLicenseRule = (num: number, title: string, desc: string, isStrict = false) => (
+        <div className={`flex gap-4 p-5 rounded-3xl border ${isStrict ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
+            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black flex-shrink-0 ${isStrict ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                {num}
+            </div>
+            <div>
+                <h4 className={`font-black uppercase tracking-tight text-sm mb-1 ${isStrict ? 'text-rose-900' : 'text-slate-900'}`}>{title}</h4>
+                <p className={`text-sm ${isStrict ? 'text-rose-700 font-bold' : 'text-slate-600'}`}>{desc}</p>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+        <div className="space-y-6 animate-in fade-in duration-500 pb-20 max-w-4xl mx-auto">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500">
+                    <button onClick={() => navigate(-1)} className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl transition-all text-slate-500 active:scale-95 shadow-sm">
                         <ArrowLeft className="h-5 w-5" />
                     </button>
                     <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Support & Legal</h2>
@@ -94,55 +44,152 @@ export const LegalView: React.FC = () => {
 
                 <button
                     onClick={() => setLang(lang === 'en' ? 'hi' : 'en')}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-xs font-black uppercase tracking-widest border border-indigo-100 hover:bg-indigo-100 transition-all"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 text-indigo-700 rounded-2xl text-[11px] font-black uppercase tracking-widest border border-indigo-100 hover:bg-indigo-100 transition-all active:scale-95"
                 >
                     <Languages className="h-4 w-4" />
                     {lang === 'en' ? 'Switch to Hinglish' : 'Switch to English'}
                 </button>
             </div>
 
-            <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+            <div className="flex p-1 bg-slate-200/50 rounded-[1.5rem] w-fit">
                 <button
                     onClick={() => setActiveTab('manual')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     <Book className="h-4 w-4" />
                     User Manual
                 </button>
                 <button
                     onClick={() => setActiveTab('license')}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'license' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'license' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                    <ShieldCheck className="h-4 w-4" />
+                    <Scale className="h-4 w-4" />
                     License
                 </button>
             </div>
 
-            <Card className="prose prose-slate max-w-none bg-white p-8 rounded-[2.5rem] border-slate-100 shadow-xl shadow-slate-100/50">
-                <div className="whitespace-pre-wrap font-medium text-slate-600 leading-relaxed text-sm">
-                    {activeTab === 'manual' ? content[lang].manual : content[lang].license}
-                </div>
+            <Card className="bg-white p-6 sm:p-10 rounded-[2.5rem] sm:rounded-[3rem] border-slate-100 shadow-xl shadow-slate-200/50">
+                {activeTab === 'license' ? (
+                    <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+                        <div className="border-b border-slate-100 pb-6 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                                <h3 className="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tighter flex items-center justify-center sm:justify-start gap-3">
+                                    <ShieldCheck className="h-8 w-8 text-indigo-600" />
+                                    Proprietary License
+                                </h3>
+                                <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mt-2">Copyright © 2026 Aayush Sharma</p>
+                            </div>
+                            <div className="px-4 py-2 bg-slate-100 rounded-xl text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                Enterprise Edition
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {lang === 'en' ? (
+                                <>
+                                    {renderLicenseRule(1, 'Ownership', 'Source code belongs entirely to Aayush Sharma.')}
+                                    {renderLicenseRule(2, 'Usage', 'Restricted exclusively to Acropolis Institute internal use.')}
+                                    {renderLicenseRule(3, 'Redistribution', 'Strictly Prohibited under any circumstances.', true)}
+                                    {renderLicenseRule(4, 'Modifications', 'Requires explicit written developer consent.')}
+                                </>
+                            ) : (
+                                <>
+                                    {renderLicenseRule(1, 'Ownership', 'Ye code poori tarah Aayush Sharma ki property hai.')}
+                                    {renderLicenseRule(2, 'Usage', 'Sirf Acropolis Institute ke internal operations ke liye allowed hai.')}
+                                    {renderLicenseRule(3, 'Resell', 'Isse kisi aur ko bechna ya redistribute karna strictly mana hai.', true)}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-8 animate-in slide-in-from-left-4 duration-300">
+                        <div className="border-b border-slate-100 pb-6 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div>
+                                <h3 className="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tighter flex items-center justify-center sm:justify-start gap-3">
+                                    <Book className="h-8 w-8 text-indigo-600" />
+                                    {lang === 'en' ? 'User Manual' : 'Margdarshika'}
+                                </h3>
+                                <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mt-2">
+                                    {lang === 'en' ? 'Complete Guide to Acro AMS v2.5' : 'App kaise use karein?'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-10">
+                            {/* Section 1 */}
+                            <div>
+                                <h4 className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
+                                    <LayoutDashboard className="h-4 w-4" /> {lang === 'en' ? 'Faculty Dashboard' : 'Dashboard Ka Upyog'}
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {lang === 'en' ? (
+                                        <>
+                                            {renderManualItem(<Zap size={18}/>, 'Select Slot (L1-L7)', 'You MUST select a lecture slot before marking. A pulsing background means it is active.')}
+                                            {renderManualItem(<Users size={18}/>, 'Mark Attendance', 'Click a student name card to toggle. Green = Present, Red = Absent.')}
+                                            {renderManualItem(<Database size={18}/>, 'Save Data', 'Submits data to Supabase safely. Logs the exact time and your ID for auditing.')}
+                                            {renderManualItem(<MessageSquare size={18}/>, 'Request Overwrite', 'If another teacher marked the slot, this sends a direct request to them.')}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {renderManualItem(<Zap size={18}/>, 'Slot Chune (L1-L7)', 'Attendance mark karne se pehle Lecture Slot select karna zaroori hai. Active slot chamkega.')}
+                                            {renderManualItem(<Users size={18}/>, 'Attendance Lagana', 'Student card par tap karein. Green ka matlab Present, Red ka matlab Absent.')}
+                                            {renderManualItem(<Database size={18}/>, 'Data Save Karna', 'Isse data save ho jayega aur background mein Audit Log ban jayega.')}
+                                            {renderManualItem(<MessageSquare size={18}/>, 'Overwrite Request', 'Agar kisi aur teacher ne attendance bhar di hai, toh aap unhe request bhej sakte hain.')}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {/* Section 2 */}
+                            <div>
+                                <h4 className="flex items-center gap-2 text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4">
+                                    <ShieldCheck className="h-4 w-4" /> {lang === 'en' ? 'System & Safety' : 'Safety aur Setup'}
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {lang === 'en' ? (
+                                        <>
+                                            {renderManualItem(<Database size={18}/>, 'Recycle Bin', 'Deleted records stay for 12 hours. Only the teacher who deleted it can restore it.')}
+                                            {renderManualItem(<Smartphone size={18}/>, 'PWA Install', 'Tap "Install App" on your phone for a lag-free, native app experience.')}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {renderManualItem(<Database size={18}/>, 'Recycle Bin', 'Delete ki hui attendance 12 ghante tak Recycle Bin mein rehti hai aur wapas a sakti hai.')}
+                                            {renderManualItem(<Smartphone size={18}/>, 'App Install', 'Apne phone mein "Install App" button dabayein taki bina lag ke app chale.')}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </Card>
 
-            <Card className="bg-slate-900 text-white border-none p-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div>
-                    <h4 className="font-black uppercase tracking-tight text-lg">Developer Contact</h4>
-                    <p className="text-sm text-slate-400 mt-1 italic text-center sm:text-left">Aayush Sharma | mraayush979@gmail.com</p>
-                    <p className="text-[10px] font-black text-emerald-400 mt-1 uppercase tracking-widest text-center sm:text-left">WhatsApp: +91 6266439162</p>
+            {/* Developer Contact Card */}
+            <Card className="bg-slate-900 text-white border-none p-8 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl shadow-slate-900/20 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl" />
+                
+                <div className="relative z-10 text-center md:text-left">
+                    <h4 className="font-black uppercase tracking-tighter text-2xl text-white">Developer Contact</h4>
+                    <p className="text-sm text-slate-400 mt-1.5 italic">Aayush Sharma | mraayush979@gmail.com</p>
+                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 rounded-xl border border-emerald-500/20 mt-3">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">WhatsApp: +91 6266439162</span>
+                    </div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                
+                <div className="relative z-10 flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                     <Button 
                         onClick={() => window.open("https://wa.me/916266439162", "_blank")}
-                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 border-none flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto h-14 px-8 bg-emerald-500 hover:bg-emerald-400 text-slate-900 border-none flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
                     >
-                        <MessageSquare className="h-4 w-4" />
-                        WhatsApp Support
+                        <MessageSquare className="h-5 w-5" />
+                        WhatsApp
                     </Button>
                     <Button 
                         onClick={() => window.open("https://itsaayushsharma.vercel.app/", "_blank")}
-                        className="w-full sm:w-auto bg-indigo-500 hover:bg-indigo-400 border-none flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto h-14 px-8 bg-white/10 hover:bg-white/20 text-white border border-white/10 flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-xs transition-all backdrop-blur-md active:scale-95"
                     >
-                        <ExternalLink className="h-4 w-4" />
+                        <ExternalLink className="h-5 w-5" />
                         Portfolio
                     </Button>
                 </div>

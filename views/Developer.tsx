@@ -343,7 +343,7 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                 <p className="text-xs font-medium opacity-80 mt-0.5">As a developer, you can view and restore deleted records from <b>all branches</b>.</p>
                             </div>
                         </section>
-                        <RecycleBin branchId="ALL" metaData={{}} />
+                        <RecycleBin branchId="ALL" metaData={{}} user={user} />
                     </div>
                 )}
 

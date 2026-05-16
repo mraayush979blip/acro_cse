@@ -31,7 +31,7 @@ const ToggleSwitch: React.FC<{ checked: boolean; onChange: () => void; disabled?
    </button>
 );
 
-const CoordinatorMarkingMonitor: React.FC<{ branchId: string; metaData: any }> = ({ branchId, metaData }) => {
+const CoordinatorMarkingMonitor: React.FC<{ branchId: string; metaData: { subjects: Record<string, any>, faculty: Record<string, any>, batches: Record<string, any> } }> = ({ branchId, metaData }) => {
    const [assignments, setAssignments] = useState<FacultyAssignment[]>([]);
    const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
    const [loading, setLoading] = useState(true);
@@ -587,7 +587,7 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
                                  // Get all subjects that have marks or are assigned
                                  const usedSubjectIds = Array.from(new Set(marks.map(m => m.subjectId)));
                                  const branchSubjects = (usedSubjectIds as string[]).map(sid => {
-                                    const sub = metaData.subjects[sid];
+                                    const sub = metaData.subjects[sid as string];
                                     return sub ? { ...sub, id: sid } : null;
                                  }).filter(Boolean) as any[];
 
@@ -2041,10 +2041,10 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
             setLoadingStudents(true);
             try {
                // Fetch ALL students for the branch, we filter in UI based on selectedMarkingBatches
-               const data = await db.getStudents(selBranchId);
+               const data: User[] = await db.getStudents(selBranchId);
 
                // Deduplicate
-               const unique = Array.from(new Map(data.map(s => [s.uid, s])).values());
+               const unique: User[] = Array.from(new Map(data.map(s => [s.uid, s])).values());
                // Sort numerically by Sr No
                setAllBranchStudents(unique.sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })));
 

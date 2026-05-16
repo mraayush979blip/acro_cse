@@ -63,6 +63,7 @@ interface IDataService {
   getNotifications: (userId: string) => Promise<Notification[]>;
   updateNotificationStatus: (id: string, status: 'READ' | 'ACTIONED' | 'APPROVED' | 'DENIED') => Promise<void>;
   deleteNotification: (id: string) => Promise<void>;
+  deleteAllNotifications: (userId: string) => Promise<void>;
 
   // Setup
   seedDatabase: () => Promise<void>;
@@ -83,6 +84,7 @@ interface IDataService {
   getAuditLogs: (limit?: number) => Promise<any[]>;
   getDeletedAttendance: (branchId: string) => Promise<AttendanceRecord[]>;
   restoreAttendance: (ids: string[]) => Promise<{ status: 'SUCCESS' | 'CONFLICT'; currentMarkedBy?: string; conflictData?: any }>;
+  permanentlyDeleteAttendance: (ids: string[]) => Promise<void>;
 
   // Developer / System
   getUsersCount: () => Promise<number>;
@@ -850,6 +852,12 @@ class SupabaseService implements IDataService {
     }));
   }
 
+  async permanentlyDeleteAttendance(ids: string[]): Promise<void> {
+    const { error } = await supabase.from('deleted_attendance').delete().in('id', ids);
+    if (error) throw new Error(error.message);
+    await this.logAudit('PERMANENT_DELETE_ATTENDANCE', { count: ids.length });
+  }
+
   async restoreAttendance(ids: string[]): Promise<{ status: 'SUCCESS' | 'CONFLICT'; currentMarkedBy?: string; conflictData?: any }> {
     const { data: records, error: fetchError } = await supabase
       .from('deleted_attendance')
@@ -864,7 +872,6 @@ class SupabaseService implements IDataService {
           .select('marked_by, profiles(display_name)')
           .eq('date', r.date)
           .eq('branch_id', r.branch_id)
-          .eq('batch_id', r.batch_id)
           .eq('lecture_slot', r.lecture_slot)
           .maybeSingle();
 
@@ -878,15 +885,34 @@ class SupabaseService implements IDataService {
     }
 
     // No conflicts, proceed with direct restore
-    const { error: insertError } = await supabase.from('attendance').insert(records.map(r => {
-       const { deleted_at, ...cleanRecord } = r;
-       return cleanRecord;
-    }));
+    const { error: insertError } = await supabase.from('attendance').insert(records.map(r => ({
+       id: r.id,
+       date: r.date,
+       student_id: r.student_id,
+       subject_id: r.subject_id,
+       branch_id: r.branch_id,
+       batch_id: r.batch_id,
+       is_present: r.is_present,
+       marked_by: r.marked_by,
+       timestamp: r.timestamp,
+       lecture_slot: r.lecture_slot,
+       reason: r.reason
+    })));
     
     if (insertError) throw insertError;
 
     await supabase.from('deleted_attendance').delete().in('id', ids);
-    await this.logAudit('RESTORE_ATTENDANCE', { count: ids.length, ids });
+    const first = records?.[0];
+    const metadata = first ? {
+       count: ids.length,
+       branchId: first.branch_id,
+       subjectId: first.subject_id,
+       batchId: first.batch_id,
+       date: first.date,
+       slot: first.lecture_slot
+    } : { count: ids.length };
+    
+    await this.logAudit('RESTORE_ATTENDANCE', metadata);
     return { status: 'SUCCESS' };
   }
 
@@ -964,7 +990,10 @@ class SupabaseService implements IDataService {
     // Background Log
     this.logAudit('SAVE_ATTENDANCE', { 
         count: records.length, 
-        branch: records[0]?.branchId, 
+        branchId: records[0]?.branchId, 
+        subjectId: records[0]?.subjectId,
+        batchId: records[0]?.batchId,
+        slot: records[0]?.lectureSlot,
         date: records[0]?.date 
     }).catch(console.error);
   }
@@ -987,7 +1016,16 @@ class SupabaseService implements IDataService {
     if (error) throw error;
 
     // 4. Log the deletion
-    this.logAudit('DELETE_ATTENDANCE', { count: ids.length, ids }).catch(console.error);
+    const first = records?.[0];
+    const metadata = first ? {
+       count: ids.length,
+       branchId: first.branch_id,
+       subjectId: first.subject_id,
+       batchId: first.batch_id,
+       date: first.date,
+       slot: first.lecture_slot
+    } : { count: ids.length, ids };
+    this.logAudit('DELETE_ATTENDANCE', metadata).catch(console.error);
   }
 
   async deleteAttendanceForOverwrite(date: string, branchId: string, slot: number): Promise<void> {
@@ -1004,6 +1042,8 @@ class SupabaseService implements IDataService {
 
     const { error } = await supabase.from('attendance').delete().eq('date', date).eq('branch_id', branchId).eq('lecture_slot', slot);
     if (error) throw error;
+    
+    await this.logAudit('DELETE_FOR_OVERWRITE', { date, branchId, slot, count: records?.length || 0 });
   }
 
   // --- Notifications ---
@@ -1898,6 +1938,13 @@ class MockService implements IDataService {
     return all.filter(a => a.branchId === branchId);
   }
 
+  async permanentlyDeleteAttendance(ids: string[]): Promise<void> {
+    const allDeleted = this.load('ams_deleted_attendance', []) as AttendanceRecord[];
+    const idsSet = new Set(ids);
+    this.save('ams_deleted_attendance', allDeleted.filter(a => !idsSet.has(a.id)));
+    await this.logAudit('PERMANENT_DELETE_ATTENDANCE', { count: ids.length });
+  }
+
   async restoreAttendance(ids: string[]): Promise<{ status: 'SUCCESS' | 'CONFLICT'; currentMarkedBy?: string; conflictData?: any }> {
     const allDeleted = this.load('ams_deleted_attendance', []) as AttendanceRecord[];
     const allAttendance = this.load('ams_attendance', []) as AttendanceRecord[];
@@ -1909,7 +1956,6 @@ class MockService implements IDataService {
         const conflict = allAttendance.find(a => 
             r.date === a.date && 
             r.branchId === a.branchId && 
-            r.batchId === a.batchId && 
             r.lectureSlot === a.lectureSlot
         );
         if (conflict) {
@@ -1926,4 +1972,4 @@ class MockService implements IDataService {
 }
 
 const hasSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY && !import.meta.env.VITE_SUPABASE_ANON_KEY.includes('placeholder');
-export const db = hasSupabaseKey ? new SupabaseService() : new MockService();
+export const db: IDataService = hasSupabaseKey ? new SupabaseService() : new MockService();

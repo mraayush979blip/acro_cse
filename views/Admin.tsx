@@ -13,6 +13,11 @@ const SystemManagement: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [metaCache, setMetaCache] = useState<{
+    branches: Record<string, string>;
+    batches: Record<string, string>;
+    subjects: Record<string, string>;
+  }>({ branches: {}, batches: {}, subjects: {} });
 
   useEffect(() => {
     loadData();
@@ -25,7 +30,23 @@ const SystemManagement: React.FC = () => {
         const s = await db.getSystemSettings();
         setSettings(s);
       } else {
-        const logs = await db.getAuditLogs(50); // Get last 50 logs
+        const [logs, branches, batches, subjects] = await Promise.all([
+          db.getAuditLogs(50),
+          db.getBranches(),
+          db.getBatches(),
+          db.getSubjects()
+        ]);
+
+        const bMap: Record<string, string> = {};
+        branches.forEach(b => bMap[b.id] = b.name);
+        
+        const baMap: Record<string, string> = {};
+        batches.forEach(b => baMap[b.id] = b.name);
+        
+        const sMap: Record<string, string> = {};
+        subjects.forEach(s => sMap[s.id] = s.name);
+
+        setMetaCache({ branches: bMap, batches: baMap, subjects: sMap });
         setAuditLogs(logs);
       }
     } catch (err) {
@@ -46,6 +67,21 @@ const SystemManagement: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const formatLogDetails = (log: any) => {
+    const m = log.metadata;
+    if (!m) return '-';
+    
+    const parts = [];
+    if (m.branchId) parts.push(`Class: ${metaCache.branches[m.branchId] || m.branchId}`);
+    if (m.batchId && m.batchId !== 'ALL') parts.push(`Batch: ${metaCache.batches[m.batchId] || m.batchId}`);
+    if (m.subjectId) parts.push(`Sub: ${metaCache.subjects[m.subjectId] || m.subjectId}`);
+    if (m.date) parts.push(`Date: ${m.date}`);
+    if (m.slot) parts.push(`Slot: ${m.slot}`);
+    if (m.count) parts.push(`Count: ${m.count}`);
+    
+    return parts.length > 0 ? parts.join(' • ') : JSON.stringify(m);
   };
 
   return (
@@ -113,13 +149,13 @@ const SystemManagement: React.FC = () => {
              </Button>
           </div>
 
-          <div className="max-h-[60vh] overflow-y-auto">
+          <div className="max-h-[60vh] overflow-y-auto overflow-x-auto">
             {loading ? (
               <div className="p-12 text-center text-slate-400">Fetching audit trail...</div>
             ) : auditLogs.length === 0 ? (
               <div className="p-12 text-center text-slate-400 italic">No audit logs found.</div>
             ) : (
-              <table className="w-full text-left text-sm border-collapse">
+              <table className="w-full text-left text-sm border-collapse min-w-[600px]">
                 <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
                   <tr>
                     <th className="px-6 py-3">Action</th>
@@ -131,23 +167,24 @@ const SystemManagement: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {auditLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 font-bold text-slate-700">
+                      <td className="px-6 py-4 font-bold text-slate-700 whitespace-nowrap">
                         <span className={`px-2 py-0.5 rounded text-[10px] uppercase ${
-                          log.action.includes('DELETE') ? 'bg-red-50 text-red-600' :
-                          log.action.includes('RESTORE') ? 'bg-green-50 text-green-600' : 'bg-indigo-50 text-indigo-600'
+                          log.action.includes('DELETE') ? 'bg-rose-50 text-rose-600 border border-rose-100' :
+                          log.action.includes('RESTORE') ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
+                          'bg-indigo-50 text-indigo-600 border border-indigo-100'
                         }`}>
-                          {log.action.replace('_', ' ')}
+                          {log.action.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-600 font-medium">
+                      <td className="px-6 py-4 text-slate-600 font-medium whitespace-nowrap">
                          {log.profiles?.display_name || log.performed_by || 'System'}
                       </td>
-                      <td className="px-6 py-4 text-xs text-slate-400 font-mono">
+                      <td className="px-6 py-4 text-xs text-slate-400 font-mono whitespace-nowrap">
                          {new Date(log.timestamp).toLocaleString()}
                       </td>
                       <td className="px-6 py-4">
-                         <div className="text-[10px] text-slate-500 max-w-[200px] truncate" title={JSON.stringify(log.metadata)}>
-                            {JSON.stringify(log.metadata)}
+                         <div className="text-[10px] font-bold text-slate-500 leading-relaxed" title={JSON.stringify(log.metadata)}>
+                            {formatLogDetails(log)}
                          </div>
                       </td>
                     </tr>
