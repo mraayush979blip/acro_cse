@@ -32,14 +32,21 @@ export const LegalView: React.FC = () => {
         </div>
     );
 
+    const renderLegalTerm = (title: string, content: string) => (
+        <div className="space-y-2">
+            <h5 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{title}</h5>
+            <p className="text-xs text-slate-600 leading-relaxed font-medium">{content}</p>
+        </div>
+    );
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20 max-w-4xl mx-auto">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-2">
                 <div className="flex items-center gap-4">
                     <button onClick={() => navigate(-1)} className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-2xl transition-all text-slate-500 active:scale-95 shadow-sm">
                         <ArrowLeft className="h-5 w-5" />
                     </button>
-                    <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Support & Legal</h2>
+                    <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">System & Legal</h2>
                 </div>
 
                 <button
@@ -51,7 +58,7 @@ export const LegalView: React.FC = () => {
                 </button>
             </div>
 
-            <div className="flex p-1 bg-slate-200/50 rounded-[1.5rem] w-fit">
+            <div className="flex p-1 bg-slate-200/50 rounded-[1.5rem] w-fit ml-2">
                 <button
                     onClick={() => setActiveTab('manual')}
                     className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
@@ -64,41 +71,55 @@ export const LegalView: React.FC = () => {
                     className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === 'license' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                     <Scale className="h-4 w-4" />
-                    License
+                    License & Terms
                 </button>
             </div>
 
             <Card className="bg-white p-6 sm:p-10 rounded-[2.5rem] sm:rounded-[3rem] border-slate-100 shadow-xl shadow-slate-200/50">
                 {activeTab === 'license' ? (
-                    <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-                        <div className="border-b border-slate-100 pb-6 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="space-y-10 animate-in slide-in-from-right-4 duration-300">
+                        <div className="border-b border-slate-100 pb-8 text-center sm:text-left flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div>
                                 <h3 className="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tighter flex items-center justify-center sm:justify-start gap-3">
                                     <ShieldCheck className="h-8 w-8 text-indigo-600" />
-                                    Proprietary License
+                                    Software License
                                 </h3>
-                                <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mt-2">Copyright © 2026 Aayush Sharma</p>
+                                <p className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mt-2">© 2026 ACRO-AMS | Developed by Aayush Sharma</p>
                             </div>
-                            <div className="px-4 py-2 bg-slate-100 rounded-xl text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                            <div className="px-4 py-2 bg-indigo-600 rounded-xl text-[10px] font-black text-white uppercase tracking-widest shadow-lg shadow-indigo-200">
                                 Enterprise Edition
                             </div>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {lang === 'en' ? (
-                                <>
-                                    {renderLicenseRule(1, 'Ownership', 'Source code belongs entirely to Aayush Sharma.')}
-                                    {renderLicenseRule(2, 'Usage', 'Restricted exclusively to Acropolis Institute internal use.')}
-                                    {renderLicenseRule(3, 'Redistribution', 'Strictly Prohibited under any circumstances.', true)}
-                                    {renderLicenseRule(4, 'Modifications', 'Requires explicit written developer consent.')}
-                                </>
-                            ) : (
-                                <>
-                                    {renderLicenseRule(1, 'Ownership', 'Ye code poori tarah Aayush Sharma ki property hai.')}
-                                    {renderLicenseRule(2, 'Usage', 'Sirf Acropolis Institute ke internal operations ke liye allowed hai.')}
-                                    {renderLicenseRule(3, 'Resell', 'Isse kisi aur ko bechna ya redistribute karna strictly mana hai.', true)}
-                                </>
-                            )}
+                        <div className="space-y-6">
+                           <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">Core Restrictions</h4>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                               {lang === 'en' ? (
+                                   <>
+                                       {renderLicenseRule(1, 'Intellectual Property', 'The entire source code, architecture, and design tokens remain the exclusive intellectual property of Aayush Sharma.')}
+                                       {renderLicenseRule(2, 'Licensed Territory', 'This software is granted for use exclusively within the Acropolis Institute of Technology and Research.')}
+                                       {renderLicenseRule(3, 'Zero-Redistribution', 'The software may NOT be resold, rented, or redistributed to any third party under any circumstances.', true)}
+                                       {renderLicenseRule(4, 'Reverse Engineering', 'Deciphering, decompiling, or reverse engineering the software logic is strictly prohibited by law.')}
+                                   </>
+                               ) : (
+                                   <>
+                                       {renderLicenseRule(1, 'Ownership', 'Ye code poori tarah Aayush Sharma ki property hai aur unhi ke paas iske rights hain.')}
+                                       {renderLicenseRule(2, 'Institute Usage', 'Isko sirf Acropolis Institute ke campus operations ke liye istemal kiya ja sakta hai.')}
+                                       {renderLicenseRule(3, 'Resell Mana Hai', 'Is software ko kisi aur ko bechna ya code share karna legally mana hai.', true)}
+                                       {renderLicenseRule(4, 'Permission', 'Kisi bhi code change ke liye developer ki written permission zaroori hai.')}
+                                   </>
+                               )}
+                           </div>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 space-y-8">
+                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">Legal Terms & Conditions</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-8">
+                                {renderLegalTerm('Warranty', 'The software is provided "AS IS" without warranty of any kind, either expressed or implied.')}
+                                {renderLegalTerm('Liability', 'In no event shall the developer be liable for any special, incidental, indirect, or consequential damages.')}
+                                {renderLegalTerm('Termination', 'Violation of any license terms will result in immediate termination of the license grant.')}
+                                {renderLegalTerm('Jurisdiction', 'All legal matters are subject to the jurisdiction of the developer\'s registered city.')}
+                            </div>
                         </div>
                     </div>
                 ) : (
@@ -164,36 +185,36 @@ export const LegalView: React.FC = () => {
                 )}
             </Card>
 
-            {/* Developer Contact Card */}
-            <Card className="bg-slate-900 text-white border-none p-8 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl shadow-slate-900/20 relative overflow-hidden">
+            {/* Developer Contact Card - FIXED: Using div to ensure dark background */}
+            <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl shadow-slate-900/40 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl" />
                 
                 <div className="relative z-10 text-center md:text-left">
-                    <h4 className="font-black uppercase tracking-tighter text-2xl text-white">Developer Contact</h4>
-                    <p className="text-sm text-slate-400 mt-1.5 italic">Aayush Sharma | mraayush979@gmail.com</p>
+                    <h4 className="font-black uppercase tracking-tighter text-2xl text-white">Project Developer</h4>
+                    <p className="text-sm text-slate-400 mt-1.5 italic font-medium">Aayush Sharma | mraayush979@gmail.com</p>
                     <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 rounded-xl border border-emerald-500/20 mt-3">
                         <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">WhatsApp: +91 6266439162</span>
+                        <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Support Line: +91 6266439162</span>
                     </div>
                 </div>
                 
                 <div className="relative z-10 flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                     <Button 
                         onClick={() => window.open("https://wa.me/916266439162", "_blank")}
-                        className="w-full sm:w-auto h-14 px-8 bg-emerald-500 hover:bg-emerald-400 text-slate-900 border-none flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
+                        className="w-full sm:w-auto h-14 px-8 bg-emerald-600 hover:bg-emerald-500 text-white border-none flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-emerald-900/20 active:scale-95"
                     >
-                        <MessageSquare className="h-5 w-5" />
+                        <MessageSquare className="h-4 w-4" />
                         WhatsApp
                     </Button>
                     <Button 
                         onClick={() => window.open("https://itsaayushsharma.vercel.app/", "_blank")}
-                        className="w-full sm:w-auto h-14 px-8 bg-white/10 hover:bg-white/20 text-white border border-white/10 flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-xs transition-all backdrop-blur-md active:scale-95"
+                        className="w-full sm:w-auto h-14 px-8 bg-white/10 hover:bg-white hover:text-slate-900 text-white border border-white/20 flex items-center justify-center gap-2 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all backdrop-blur-md active:scale-95"
                     >
-                        <ExternalLink className="h-5 w-5" />
+                        <ExternalLink className="h-4 w-4" />
                         Portfolio
                     </Button>
                 </div>
-            </Card>
+            </div>
         </div>
     );
 };
