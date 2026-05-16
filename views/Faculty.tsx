@@ -2809,12 +2809,11 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    };
 
    const handleShareAttendance = async () => {
-      const today = new Date().toISOString().split('T')[0];
-      // Get records for current subject today
-      const todaysRecords = allClassRecords.filter(r => r.date === today && r.subjectId === selSubjectId);
+      const targetDate = historyFilterDate || new Date().toISOString().split('T')[0];
+      const targetRecords = allClassRecords.filter(r => r.date === targetDate && r.subjectId === selSubjectId);
 
-      if (todaysRecords.length === 0) {
-         alert("No attendance records found for today to share.");
+      if (targetRecords.length === 0) {
+         alert(`No attendance records found for ${targetDate} to share.`);
          return;
       }
 
@@ -2823,12 +2822,17 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       const subjectCode = subjectDetail?.code || '';
       const branchName = metaData.branches[selBranchId] || 'Class';
       
-      const presentUids = new Set(todaysRecords.filter(r => r.isPresent).map(r => r.studentId));
+      const presentUids = new Set(targetRecords.filter(r => r.isPresent).map(r => r.studentId));
       const totalCount = allBranchStudents.length;
       const presentCount = presentUids.size;
 
+      const slots = Array.from(new Set(targetRecords.map(r => r.lectureSlot))).filter(Boolean).sort();
+
       let message = `*DAILY ATTENDANCE SUMMARY*\n`;
-      message += `*Date:* ${new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n`;
+      message += `*Date:* ${new Date(targetDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n`;
+      if (slots.length > 0) {
+         message += `*Slots:* ${slots.join(', ')}\n`;
+      }
       message += `*Subject:* ${subjectName.toUpperCase()} (${subjectCode})\n`;
       message += `*Faculty:* ${user.displayName}\n`;
       message += `*Class:* ${branchName}\n`;
@@ -3423,7 +3427,11 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            disabled={allClassRecords.length === 0}
                         >
                            <Share2 className="h-5 w-5" />
-                           <span className="text-[10px] font-black tracking-widest uppercase">Share Today's Attendance</span>
+                           <span className="text-[10px] font-black tracking-widest uppercase">
+                              {historyFilterDate 
+                                 ? `Share ${new Date(historyFilterDate).toLocaleDateString('en-IN', {day: '2-digit', month: '2-digit', year: '2-digit'})} Attendance` 
+                                 : "Share Today's Attendance"}
+                           </span>
                         </button>
 
                         {showFilters && (

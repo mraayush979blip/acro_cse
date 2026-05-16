@@ -4,23 +4,36 @@ import { db } from '../services/db';
 import { supabase } from '../services/supabase';
 import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark, SystemSettings, MidSemType } from '../types';
 import { Card, Button, Input, Select, Modal, FileUploader, ExportProgressModal } from '../components/UI';
-import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings, GripVertical, FileDown, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings, GripVertical, FileDown, Loader2, Activity, RefreshCw } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
 const SystemManagement: React.FC = () => {
+  const [activeSubTab, setActiveSubTab] = useState<'config' | 'audit'>('config');
   const [settings, setSettings] = useState<SystemSettings>({ studentLoginEnabled: true });
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    db.getSystemSettings().then(s => {
-      setSettings(s);
-      setLoading(false);
-    }).catch(err => {
+    loadData();
+  }, [activeSubTab]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      if (activeSubTab === 'config') {
+        const s = await db.getSystemSettings();
+        setSettings(s);
+      } else {
+        const logs = await db.getAuditLogs(50); // Get last 50 logs
+        setAuditLogs(logs);
+      }
+    } catch (err) {
       console.error(err);
+    } finally {
       setLoading(false);
-    });
-  }, []);
+    }
+  };
 
   const handleToggleStudentLogin = async () => {
     setSaving(true);
@@ -35,43 +48,117 @@ const SystemManagement: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Loading settings...</div>;
-
   return (
-    <Card className="max-w-2xl mx-auto">
-      <div className="space-y-6">
-        <div className="flex items-center gap-3 pb-4 border-b">
-          <Settings className="h-6 w-6 text-indigo-600" />
-          <h3 className="text-xl font-bold text-slate-900">System Configuration</h3>
-        </div>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex gap-2 p-1 bg-slate-200/50 rounded-2xl w-fit">
+        <button
+          onClick={() => setActiveSubTab('config')}
+          className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeSubTab === 'config' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          Configuration
+        </button>
+        <button
+          onClick={() => setActiveSubTab('audit')}
+          className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeSubTab === 'audit' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          Audit Trail
+        </button>
+      </div>
 
-        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
-          <div>
-            <h4 className="font-bold text-slate-900">Student Login Access</h4>
-            <p className="text-sm text-slate-500">Control whether students can sign in to the application.</p>
-          </div>
-          <button
-            onClick={handleToggleStudentLogin}
-            disabled={saving}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${settings.studentLoginEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.studentLoginEnabled ? 'translate-x-6' : 'translate-x-1'}`}
-            />
-          </button>
-        </div>
+      {activeSubTab === 'config' ? (
+        <Card className="max-w-2xl">
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 pb-4 border-b">
+              <Settings className="h-6 w-6 text-indigo-600" />
+              <h3 className="text-xl font-bold text-slate-900">System Configuration</h3>
+            </div>
 
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-            <div className="text-sm text-amber-700">
-              <p className="font-bold">Important Note</p>
-              <p>Disabling student login will immediately hide the "Login as Student" option from the login screen and block any active student login attempts.</p>
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div>
+                <h4 className="font-bold text-slate-900">Student Login Access</h4>
+                <p className="text-sm text-slate-500">Control whether students can sign in to the application.</p>
+              </div>
+              <button
+                onClick={handleToggleStudentLogin}
+                disabled={saving}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${settings.studentLoginEnabled ? 'bg-indigo-600' : 'bg-slate-300'}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.studentLoginEnabled ? 'translate-x-6' : 'translate-x-1'}`}
+                />
+              </button>
+            </div>
+
+            <div className="bg-amber-50 border-l-4 border-amber-500 p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                <div className="text-sm text-amber-700">
+                  <p className="font-bold">Important Note</p>
+                  <p>Disabling student login will immediately hide the "Login as Student" option from the login screen and block any active student login attempts.</p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </Card>
+        </Card>
+      ) : (
+        <Card className="p-0 overflow-hidden">
+          <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Activity className="h-5 w-5 text-indigo-600" />
+                System Audit Logs
+             </h3>
+             <Button variant="secondary" size="sm" onClick={loadData}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+             </Button>
+          </div>
+
+          <div className="max-h-[60vh] overflow-y-auto">
+            {loading ? (
+              <div className="p-12 text-center text-slate-400">Fetching audit trail...</div>
+            ) : auditLogs.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 italic">No audit logs found.</div>
+            ) : (
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-slate-50 text-[10px] font-black text-slate-500 uppercase tracking-widest sticky top-0 z-10 shadow-sm">
+                  <tr>
+                    <th className="px-6 py-3">Action</th>
+                    <th className="px-6 py-3">Performed By</th>
+                    <th className="px-6 py-3">Timestamp</th>
+                    <th className="px-6 py-3">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {auditLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4 font-bold text-slate-700">
+                        <span className={`px-2 py-0.5 rounded text-[10px] uppercase ${
+                          log.action.includes('DELETE') ? 'bg-red-50 text-red-600' :
+                          log.action.includes('RESTORE') ? 'bg-green-50 text-green-600' : 'bg-indigo-50 text-indigo-600'
+                        }`}>
+                          {log.action.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 font-medium">
+                         {log.profiles?.display_name || log.performed_by || 'System'}
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-400 font-mono">
+                         {new Date(log.timestamp).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4">
+                         <div className="text-[10px] text-slate-500 max-w-[200px] truncate" title={JSON.stringify(log.metadata)}>
+                            {JSON.stringify(log.metadata)}
+                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Card>
+      )}
+    </div>
   );
 };
 

@@ -78,6 +78,12 @@ interface IDataService {
   getSystemSettings: () => Promise<SystemSettings>;
   updateSystemSettings: (settings: SystemSettings) => Promise<void>;
 
+  // Audit & Recovery
+  logAudit: (action: string, metadata: any) => Promise<void>;
+  getAuditLogs: (limit?: number) => Promise<any[]>;
+  getDeletedAttendance: (branchId: string) => Promise<AttendanceRecord[]>;
+  restoreAttendance: (ids: string[]) => Promise<{ status: 'SUCCESS' | 'CONFLICT'; currentMarkedBy?: string; conflictData?: any }>;
+
   // Developer / System
   getUsersCount: () => Promise<number>;
   searchUsers: (query: string) => Promise<User[]>;
@@ -795,6 +801,91 @@ class SupabaseService implements IDataService {
     }));
   }
 
+  async logAudit(action: string, metadata: any): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    await supabase.from('audit_logs').insert([{
+      action,
+      metadata,
+      performed_by: user.id,
+      timestamp: new Date().toISOString()
+    }]);
+  }
+
+  async getAuditLogs(limit = 100): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*, profiles(display_name)')
+      .order('timestamp', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return data;
+  }
+
+  async getDeletedAttendance(branchId: string): Promise<AttendanceRecord[]> {
+    const { data, error } = await supabase
+      .from('deleted_attendance')
+      .select('*')
+      .eq('branch_id', branchId)
+      .order('timestamp', { ascending: false });
+    if (error) throw error;
+    return data.map(r => ({
+      id: r.id,
+      date: r.date,
+      studentId: r.student_id,
+      subjectId: r.subject_id,
+      branchId: r.branch_id,
+      batchId: r.batch_id,
+      isPresent: r.is_present,
+      markedBy: r.marked_by,
+      timestamp: Number(r.timestamp),
+      lectureSlot: r.lecture_slot,
+      reason: r.reason,
+      deletedAt: r.deleted_at
+    }));
+  }
+
+  async restoreAttendance(ids: string[]): Promise<{ status: 'SUCCESS' | 'CONFLICT'; currentMarkedBy?: string; conflictData?: any }> {
+    const { data: records, error: fetchError } = await supabase
+      .from('deleted_attendance')
+      .select('*')
+      .in('id', ids);
+    
+    if (fetchError || !records || records.length === 0) throw fetchError || new Error("Records not found");
+
+    // Conflict Check: Check if any record already exists in the main attendance table
+    for (const r of records) {
+       const { data: existing } = await supabase.from('attendance')
+          .select('marked_by, profiles(display_name)')
+          .eq('date', r.date)
+          .eq('branch_id', r.branch_id)
+          .eq('batch_id', r.batch_id)
+          .eq('lecture_slot', r.lecture_slot)
+          .maybeSingle();
+
+       if (existing) {
+          return { 
+            status: 'CONFLICT', 
+            currentMarkedBy: (existing as any).profiles?.display_name || existing.marked_by,
+            conflictData: r
+          };
+       }
+    }
+
+    // No conflicts, proceed with direct restore
+    const { error: insertError } = await supabase.from('attendance').insert(records.map(r => {
+       const { deleted_at, ...cleanRecord } = r;
+       return cleanRecord;
+    }));
+    
+    if (insertError) throw insertError;
+
+    await supabase.from('deleted_attendance').delete().in('id', ids);
+    await this.logAudit('RESTORE_ATTENDANCE', { count: ids.length, ids });
+    return { status: 'SUCCESS' };
+  }
+
   async getDateAttendance(date: string): Promise<AttendanceRecord[]> {
     let allData: any[] = [];
     let page = 0;
@@ -865,15 +956,48 @@ class SupabaseService implements IDataService {
     }));
     const { error } = await supabase.from('attendance').upsert(rows);
     if (error) throw error;
+    
+    // Background Log
+    this.logAudit('SAVE_ATTENDANCE', { 
+        count: records.length, 
+        branch: records[0]?.branchId, 
+        date: records[0]?.date 
+    }).catch(console.error);
   }
 
   async deleteAttendanceRecords(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
+    
+    // 1. Fetch current records to move to recycle bin
+    const { data: records, error: fetchError } = await supabase.from('attendance').select('*').in('id', ids);
+    if (fetchError) throw fetchError;
+
+    if (records && records.length > 0) {
+      // 2. Insert into recycle bin
+      const { error: binError } = await supabase.from('deleted_attendance').insert(records);
+      if (binError) console.error("Recycle bin backup failed:", binError);
+    }
+
+    // 3. Delete from main table
     const { error } = await supabase.from('attendance').delete().in('id', ids);
     if (error) throw error;
+
+    // 4. Log the deletion
+    this.logAudit('DELETE_ATTENDANCE', { count: ids.length, ids }).catch(console.error);
   }
 
   async deleteAttendanceForOverwrite(date: string, branchId: string, slot: number): Promise<void> {
+    // Move to Recycle Bin before deleting
+    const { data: records } = await supabase.from('attendance')
+        .select('*')
+        .eq('date', date)
+        .eq('branch_id', branchId)
+        .eq('lecture_slot', slot);
+    
+    if (records && records.length > 0) {
+        await supabase.from('deleted_attendance').insert(records);
+    }
+
     const { error } = await supabase.from('attendance').delete().eq('date', date).eq('branch_id', branchId).eq('lecture_slot', slot);
     if (error) throw error;
   }
@@ -1743,6 +1867,56 @@ class MockService implements IDataService {
     });
 
     localStorage.setItem('ams_users', JSON.stringify(users));
+  }
+
+  async logAudit(action: string, metadata: any) {
+    const all = this.load('ams_audit_logs', []);
+    const user = await this.getCurrentUser();
+    all.push({
+      id: `audit_${Date.now()}`,
+      action,
+      metadata,
+      performed_by: user?.uid,
+      timestamp: new Date().toISOString()
+    });
+    this.save('ams_audit_logs', all);
+  }
+
+  async getAuditLogs(limit = 100) {
+    const all = this.load('ams_audit_logs', []);
+    return all.sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, limit);
+  }
+
+  async getDeletedAttendance(branchId: string) {
+    const all = this.load('ams_deleted_attendance', []) as AttendanceRecord[];
+    if (branchId === 'ALL') return all;
+    return all.filter(a => a.branchId === branchId);
+  }
+
+  async restoreAttendance(ids: string[]): Promise<{ status: 'SUCCESS' | 'CONFLICT'; currentMarkedBy?: string; conflictData?: any }> {
+    const allDeleted = this.load('ams_deleted_attendance', []) as AttendanceRecord[];
+    const allAttendance = this.load('ams_attendance', []) as AttendanceRecord[];
+    
+    const idsSet = new Set(ids);
+    const toRestore = allDeleted.filter(a => idsSet.has(a.id));
+    
+    for (const r of toRestore) {
+        const conflict = allAttendance.find(a => 
+            r.date === a.date && 
+            r.branchId === a.branchId && 
+            r.batchId === a.batchId && 
+            r.lectureSlot === a.lectureSlot
+        );
+        if (conflict) {
+            return { status: 'CONFLICT', currentMarkedBy: conflict.markedBy, conflictData: r };
+        }
+    }
+
+    const updatedAttendance = [...allAttendance, ...toRestore];
+    this.save('ams_attendance', updatedAttendance);
+    this.save('ams_deleted_attendance', allDeleted.filter(a => !idsSet.has(a.id)));
+    await this.logAudit('RESTORE_ATTENDANCE', { count: ids.length });
+    return { status: 'SUCCESS' };
   }
 }
 

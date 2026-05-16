@@ -69,6 +69,7 @@ export interface AttendanceRecord {
   timestamp: number;
   lectureSlot?: number; // 1 to 7
   reason?: string;
+  deletedAt?: string;
 }
 
 export interface Notification {
@@ -76,7 +77,7 @@ export interface Notification {
   toUserId: string;
   fromUserId: string;
   fromUserName: string;
-  type: 'OVERWRITE_REQUEST' | 'REQUEST_APPROVED' | 'REQUEST_DENIED';
+  type: 'OVERWRITE_REQUEST' | 'REQUEST_APPROVED' | 'REQUEST_DENIED' | 'RESTORE_REQUEST';
   status: 'PENDING' | 'READ' | 'ACTIONED' | 'APPROVED' | 'DENIED';
   data: {
     date: string;

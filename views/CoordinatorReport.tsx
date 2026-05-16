@@ -421,145 +421,88 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
                      </div>
 
                      <button
-                        onClick={async () => {
+                         onClick={async () => {
                              setLoading(true);
-                             setProgress(0);
-                             setStatus('Initializing fetch...');
-                             await new Promise(r => setTimeout(r, 600));
-                            try {
-                               setProgress(20);
-                               setStatus('Fetching marks from database...');
-                               await new Promise(r => setTimeout(r, 100));
-                               const marks = await db.getMarksByStudents(students.map(s => s.uid), midSemType);
-                               setProgress(50);
-                               setStatus('Processing subjects and scores...');
-                               await new Promise(r => setTimeout(r, 50));
-                               const examName = midSemType === 'MID_SEM_1' ? 'MST 1' : midSemType === 'MID_SEM_2' ? 'MST 2' : 'Remedial MST';
-                               
-                               const usedSubjectIds = Array.from(new Set(marks.map(m => m.subjectId)));
-                               const branchSubjects = usedSubjectIds.map(sid => {
-                                  const sub = metaData.subjects[sid];
-                                  return sub ? { ...sub, id: sid } : null;
-                               }).filter(Boolean) as any[];
+                             setProgress(10);
+                             setStatus('Initializing Web Worker...');
 
-                               const data = students.map(s => {
-                                  const studentMarks = marks.filter(m => m.studentId === s.uid);
-                                  const row: any = {
-                                     'Student Name': s.displayName,
-                                     'Enrollment Number': s.studentData?.enrollmentId || '',
-                                     'Roll Number': s.studentData?.rollNo || '',
-                                     'Class/Batch': metaData.batches[s.studentData?.batchId || ''] || 'ALL',
-                                  };
-                                  
-                                  branchSubjects.forEach(sub => {
-                                     const m = studentMarks.find(m => m.subjectId === sub.id);
-                                     row[`${sub.name} (${sub.code})`] = m ? (m.marksObtained === -1 ? 'A' : m.marksObtained) : '-';
-                                  });
-                                  
-                                  return row;
-                               });
+                             try {
+                                const examName = midSemType === 'MID_SEM_1' ? 'MST 1' : midSemType === 'MID_SEM_2' ? 'MST 2' : 'Remedial MST';
+                                setStatus('Fetching marks from database...');
+                                const marks = await db.getMarksByStudents(students.map(s => s.uid), midSemType);
+                                setProgress(40);
+                                setStatus('Preparing data for worker...');
 
-                               setProgress(70);
-                               await new Promise(r => setTimeout(r, 50));
-                               setStatus('Generating Excel worksheets...');
-                               await new Promise(r => setTimeout(r, 500));
+                                const usedSubjectIds = Array.from(new Set(marks.map(m => m.subjectId)));
+                                const branchSubjects = usedSubjectIds.map(sid => {
+                                   const sub = metaData.subjects[sid];
+                                   return sub ? { ...sub, id: sid } : null;
+                                }).filter(Boolean) as any[];
 
-                               const examTitle = midSemType === 'MID_SEM_1' ? 'MID SEMESTER TEST - I' : midSemType === 'MID_SEM_2' ? 'MID SEMESTER TEST - II' : 'REMEDIAL MST';
-                               const now = new Date();
-                               const currentYear = now.getFullYear();
-                               const session = now.getMonth() >= 6 ? `${currentYear}-${(currentYear + 1) % 100}` : `${currentYear - 1}-${currentYear % 100}`;
-                               
-                               const headerAOA = [
-                                  ['ACROPOLIS INSTITUTE OF TECHNOLOGY AND RESEARCH'],
-                                  ['DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING'],
-                                  [`BRANCH SUMMARY: ${examTitle} | SESSION: ${session}`],
-                                  [`BRANCH: ${branchName.toUpperCase()} | COORDINATOR: ${user.displayName.toUpperCase()}`],
-                                  [`GENERATED ON: ${now.toLocaleDateString()}`],
-                                  []
-                               ];
+                                const data = students.map(s => {
+                                   const studentMarks = marks.filter(m => m.studentId === s.uid);
+                                   const row: any = {
+                                      'Student Name': s.displayName,
+                                      'Enrollment Number': s.studentData?.enrollmentId || '',
+                                      'Roll Number': s.studentData?.rollNo || '',
+                                      'Class/Batch': metaData.batches[s.studentData?.batchId || ''] || 'ALL',
+                                   };
+                                   branchSubjects.forEach(sub => {
+                                      const m = studentMarks.find(m => m.subjectId === sub.id);
+                                      row[`${sub.name} (${sub.code})`] = m ? (m.marksObtained === -1 ? 'A' : m.marksObtained) : '-';
+                                   });
+                                   return row;
+                                });
 
-                               const tableHeaders = Object.keys(data[0] || {});
-                               const tableData = data.map(row => Object.values(row));
-                               const finalAOA = [...headerAOA, tableHeaders, ...tableData];
+                                const tableHeaders = Object.keys(data[0] || {});
+                                const examTitle = midSemType === 'MID_SEM_1' ? 'MID SEMESTER TEST - I' : midSemType === 'MID_SEM_2' ? 'MID SEMESTER TEST - II' : 'REMEDIAL MST';
+                                const now = new Date();
+                                const currentYear = now.getFullYear();
+                                const session = now.getMonth() >= 6 ? `${currentYear}-${(currentYear + 1) % 100}` : `${currentYear - 1}-${currentYear % 100}`;
 
-                               const ws = XLSX.utils.aoa_to_sheet(finalAOA);
-                               const wb = XLSX.utils.book_new();
-                               XLSX.utils.book_append_sheet(wb, ws, "MST Marks Summary");
+                                setStatus('Worker is generating Excel workbook...');
+                                setProgress(60);
 
-                               ws['!merges'] = [
-                                  { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
-                                  { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
-                                  { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
-                                  { s: { r: 3, c: 0 }, e: { r: 3, c: tableHeaders.length - 1 } },
-                                  { s: { r: 4, c: 0 }, e: { r: 4, c: tableHeaders.length - 1 } },
-                               ];
+                                // Instantiate worker
+                                const worker = new Worker(new URL('../services/excel.worker.ts', import.meta.url), { type: 'module' });
+                                
+                                worker.postMessage({
+                                   type: 'GENERATE_MST_EXCEL',
+                                   payload: {
+                                      data,
+                                      branchName,
+                                      examName,
+                                      examTitle,
+                                      session,
+                                      coordinatorName: user.displayName,
+                                      tableHeaders
+                                   }
+                                });
 
-                               const colWidths = tableHeaders.map((_, colIndex) => {
-                                  let maxLen = tableHeaders[colIndex].length;
-                                  tableData.forEach(row => {
-                                     const len = String(row[colIndex] || '').length;
-                                     if (len > maxLen) maxLen = len;
-                                  });
-                                  return { wch: maxLen + 4 };
-                               });
-                               ws['!cols'] = colWidths;
-
-                               const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-                               for (let R = range.s.r; R <= range.e.r; ++R) {
-                                  for (let C = range.s.c; C <= range.e.c; ++C) {
-                                     const addr = XLSX.utils.encode_cell({ r: R, c: C });
-                                     if (!ws[addr]) continue;
-
-                                     ws[addr].s = {
-                                        font: { name: "Calibri", sz: 11 },
-                                        alignment: { vertical: "center", horizontal: "left" }
-                                     };
-
-                                     if (R >= 0 && R <= 4) {
-                                        ws[addr].s.alignment.horizontal = "center";
-                                        ws[addr].s.font.bold = true;
-                                        if (R === 0) ws[addr].s.font.sz = 16;
-                                        if (R === 1) ws[addr].s.font.sz = 14;
-                                        continue;
-                                     }
-
-                                     if (R === 6) {
-                                        ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
-                                        ws[addr].s.font.bold = true;
-                                        ws[addr].s.border = {
-                                           bottom: { style: "thin", color: { rgb: "000000" } },
-                                           top: { style: "thin", color: { rgb: "000000" } }
-                                        };
-                                     }
-
-                                     if (C >= 4 && R > 6) {
-                                        ws[addr].s.alignment.horizontal = "right";
-                                        if (ws[addr].v === 'A') {
-                                           ws[addr].s.font.color = { rgb: "FF0000" };
-                                           ws[addr].s.font.bold = true;
-                                        }
-                                     }
-                                  }
-                               }
-
-                               setProgress(90);
-                               await new Promise(r => setTimeout(r, 50));
-                               setStatus('Finalizing report...');
-                               await new Promise(r => setTimeout(r, 600));
-
-                               setProgress(100);
-                               setStatus('Starting download...');
-                               await new Promise(r => setTimeout(r, 500));
-
-                               XLSX.writeFile(wb, `${branchName}_${examName}_Summary.xlsx`);
-                            } catch (e: any) {
-                               alert("Failed to export: " + e.message);
-                            } finally {
-                               setTimeout(() => {
-                                  setLoading(false);
-                                  setProgress(0);
-                               }, 800);
-                            }
+                                worker.onmessage = (e) => {
+                                   const { type, payload } = e.data;
+                                   if (type === 'SUCCESS') {
+                                      setProgress(100);
+                                      setStatus('Starting download...');
+                                      const blob = new Blob([payload], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                                      const url = window.URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = `${branchName}_${examName}_Summary.xlsx`;
+                                      a.click();
+                                      window.URL.revokeObjectURL(url);
+                                      setLoading(false);
+                                      worker.terminate();
+                                   } else if (type === 'ERROR') {
+                                      alert("Worker error: " + payload);
+                                      setLoading(false);
+                                      worker.terminate();
+                                   }
+                                };
+                             } catch (e: any) {
+                                alert("Failed to export: " + e.message);
+                                setLoading(false);
+                             }
                          }}
                         disabled={loading || students.length === 0}
                         className="w-full h-12 md:h-14 px-6 md:px-10 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest md:tracking-[0.2em] shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 md:gap-3"

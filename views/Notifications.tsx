@@ -229,8 +229,10 @@ export const NotificationsPage: React.FC<NotificationsProps> = ({ user }) => {
 
                                 {n.status === 'PENDING' && (
                                     <div className="mt-4 flex justify-end gap-2 pt-3 border-t border-slate-100/50">
-                                        {n.type === 'OVERWRITE_REQUEST' ? (
-                                            <Button size="sm" onClick={() => handleAction(n, 'APPROVE')} className="bg-indigo-600">Approve Overwrite</Button>
+                                        {(n.type === 'OVERWRITE_REQUEST' || n.type === 'RESTORE_REQUEST') ? (
+                                            <Button size="sm" onClick={() => handleAction(n, 'APPROVE')} className="bg-indigo-600">
+                                                {n.type === 'RESTORE_REQUEST' ? 'Approve Restoration' : 'Approve Overwrite'}
+                                            </Button>
                                         ) : (
                                             <Button variant="secondary" size="sm" onClick={() => deleteNotif(n.id)} className="text-red-600 hover:bg-red-50 border-red-100">Delete</Button>
                                         )}

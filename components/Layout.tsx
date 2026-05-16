@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe } from 'lucide-react';
+import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe, Book } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
 import { supabase, getYearMode, setYearMode } from '../services/supabase';
@@ -371,6 +371,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
 
                     {user.role !== UserRole.STUDENT && (
                       <button
+                        onClick={() => {
+                          const target = `${getRolePath()}/recycle-bin`;
+                          setIsMenuOpen(false);
+                          if (location.pathname !== target) navigate(target);
+                        }}
+                        className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
+                      ><Trash2 className="h-4 w-4 mr-3 text-rose-500" />Recycle Bin</button>
+                    )}
+                    {user.role !== UserRole.STUDENT && (
+                      <button
                         onClick={() => { setIsMenuOpen(false); onOpenSettings(); }}
                         className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
                       ><Settings className="h-4 w-4 mr-3" />Change Password</button>
@@ -383,6 +393,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                       }}
                       className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
                     ><Bug className="h-4 w-4 mr-3 text-amber-500" />Report Bug / Review</button>
+                    {user.role !== UserRole.STUDENT && (
+                      <button
+                        onClick={() => {
+                          const target = `${getRolePath()}/legal`;
+                          setIsMenuOpen(false);
+                          if (location.pathname !== target) navigate(target);
+                        }}
+                        className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
+                      ><Book className="h-4 w-4 mr-3 text-indigo-500" />Help & License</button>
+                    )}
                     <button
                       onClick={() => { setIsMenuOpen(false); setIsDeveloperModalOpen(true); }}
                       className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"

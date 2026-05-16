@@ -7,9 +7,10 @@ import {
 import { Card, Button, Input, Modal } from '../components/UI';
 import { db } from '../services/db';
 import { User, SystemSettings } from '../types';
+import { RecycleBin } from './RecycleBin';
 
 export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'logs' | 'database' | 'settings'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'logs' | 'database' | 'settings' | 'recycle-bin'>('overview');
     const [deepStats, setDeepStats] = useState<Record<string, { count: number, size: string }>>({});
     const [storage, setStorage] = useState({ consumed: '0 MB', total: '0 MB', percent: 0 });
     const [latency, setLatency] = useState(0);
@@ -118,6 +119,7 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                     { id: 'users', icon: Users, label: 'Users', desc: 'Registry Trace' },
                     { id: 'logs', icon: Terminal, label: 'Logs', desc: 'Live Events' },
                     { id: 'database', icon: Database, label: 'Database', desc: 'Storage Per Tag' },
+                    { id: 'recycle-bin', icon: ShieldAlert, label: 'Recovery', desc: 'Recycle Bin' },
                     { id: 'settings', icon: Settings, label: 'Policies', desc: 'Global Controls' },
                 ].map(tab => (
                     <button
@@ -327,6 +329,19 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                 <DBTableCard name="System Engine" alias="Supabase" rows={1} size={deepStats.system?.size || "30.18 MB"} hint="Auth, Realtime, and Indexing Framework" isSystem={true} />
                             </div>
                         </Card>
+                    </div>
+                )}
+                
+                {activeTab === 'recycle-bin' && (
+                    <div className="space-y-6">
+                         <section className="bg-rose-50 p-4 rounded-xl border border-rose-100 flex gap-3 text-rose-800">
+                            <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
+                            <div>
+                                <h4 className="text-sm font-black uppercase tracking-tight">Global Recovery Center</h4>
+                                <p className="text-xs font-medium opacity-80 mt-0.5">As a developer, you can view and restore deleted records from <b>all branches</b>.</p>
+                            </div>
+                        </section>
+                        <RecycleBin branchId="ALL" metaData={{}} />
                     </div>
                 )}
 
