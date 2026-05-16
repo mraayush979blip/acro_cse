@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Book, ShieldCheck, ArrowLeft, Info, ExternalLink, Languages } from 'lucide-react';
+import { Book, ShieldCheck, ArrowLeft, Info, ExternalLink, Languages, MessageSquare } from 'lucide-react';
 import { Card, Button } from '../components/UI';
 import { useNavigate } from 'react-router-dom';
 
@@ -128,14 +128,24 @@ export const LegalView: React.FC = () => {
                 <div>
                     <h4 className="font-black uppercase tracking-tight text-lg">Developer Contact</h4>
                     <p className="text-sm text-slate-400 mt-1 italic text-center sm:text-left">Aayush Sharma | mraayush979@gmail.com</p>
+                    <p className="text-[10px] font-black text-emerald-400 mt-1 uppercase tracking-widest text-center sm:text-left">WhatsApp: +91 6266439162</p>
                 </div>
-                <Button 
-                    onClick={() => window.open('https://itsaayushsharma.vercel.app/', '_blank')}
-                    className="w-full sm:w-auto bg-indigo-500 hover:bg-indigo-400 border-none flex items-center justify-center gap-2"
-                >
-                    <ExternalLink className="h-4 w-4" />
-                    Portfolio
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <Button 
+                        onClick={() => window.open("https://wa.me/916266439162", "_blank")}
+                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 border-none flex items-center justify-center gap-2"
+                    >
+                        <MessageSquare className="h-4 w-4" />
+                        WhatsApp Support
+                    </Button>
+                    <Button 
+                        onClick={() => window.open("https://itsaayushsharma.vercel.app/", "_blank")}
+                        className="w-full sm:w-auto bg-indigo-500 hover:bg-indigo-400 border-none flex items-center justify-center gap-2"
+                    >
+                        <ExternalLink className="h-4 w-4" />
+                        Portfolio
+                    </Button>
+                </div>
             </Card>
         </div>
     );

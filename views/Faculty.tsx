@@ -948,6 +948,9 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    const [activeTab, setActiveTab] = useState<'MARK' | 'HISTORY' | 'MONITOR' | 'REPORTS' | 'SEARCH'>('MARK');
    const [extraReason, setExtraReason] = useState('');
    const [confirmOpen, setConfirmOpen] = useState(false);
+   const [deletionModal, setDeletionModal] = useState<{ isOpen: boolean, date: string, slots: number[], records: AttendanceRecord[] } | null>(null);
+   const [selectedSlotsToDelete, setSelectedSlotsToDelete] = useState<number[]>([]);
+   const [isDeleting, setIsDeleting] = useState(false);
    const [networkError, setNetworkError] = useState('');
 
    // Search State
@@ -1685,10 +1688,16 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
 
                                  <div className="flex md:flex-col justify-end gap-3 self-end md:self-stretch">
                                     <button
-                                       onClick={async () => {
-                                          if (confirm(`CRITICAL: Delete ALL ${dayRecs.length} extra lecture entries for ${date}? This cannot be undone.`)) {
-                                             await db.deleteAttendanceRecords(dayRecs.map(r => r.id));
-                                             setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra'));
+                                       onClick={() => {
+                                          if (slots.length > 1) {
+                                             setDeletionModal({ isOpen: true, date, slots, records: dayRecs });
+                                             setSelectedSlotsToDelete(slots);
+                                          } else {
+                                             if (confirm(`CRITICAL: Delete ${dayRecs.length} entries for Slot ${slots[0]} on ${date}? \n\nNOTE: Records will be moved to the Recycle Bin and permanently deleted after 12 hours. You can restore them from the Recycle Bin until then.`)) {
+                                                db.deleteAttendanceRecords(dayRecs.map(r => r.id)).then(async () => {
+                                                   setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra'));
+                                                });
+                                             }
                                           }
                                        }}
                                        className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all shadow-sm hover:shadow-rose-200"
@@ -1742,6 +1751,90 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                   <Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={isSaving}>Cancel</Button>
                   <Button onClick={handleSave} disabled={isSaving || selectedSessions.length === 0}>
                      {isSaving ? 'Saving...' : 'Confirm'}
+                  </Button>
+               </div>
+            </div>
+         </Modal>
+
+         <Modal
+            isOpen={!!deletionModal?.isOpen}
+            onClose={() => !isDeleting && setDeletionModal(null)}
+            title="Select Slots to Delete"
+         >
+            <div className="space-y-6">
+               <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl">
+                  <p className="text-xs font-black text-rose-700 uppercase tracking-wider mb-1">Date: {deletionModal?.date}</p>
+                  <p className="text-[10px] text-rose-600 font-bold uppercase tracking-tight">Multiple sessions detected. Select which ones to remove.</p>
+                  <div className="mt-3 p-2.5 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-2">
+                     <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                     <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest leading-tight">
+                        Records stay in Recycle Bin for 12 hours before permanent deletion
+                     </p>
+                  </div>
+               </div>
+
+               <div className="space-y-2">
+                  {deletionModal?.slots.map(slot => {
+                     const isSelected = selectedSlotsToDelete.includes(slot);
+                     const slotRecs = deletionModal.records.filter(r => r.lectureSlot === slot);
+                     return (
+                        <button
+                           key={slot}
+                           onClick={() => {
+                              setSelectedSlotsToDelete(prev => 
+                                 prev.includes(slot) ? prev.filter(s => s !== slot) : [...prev, slot]
+                              );
+                           }}
+                           className={`w-full p-4 rounded-2xl border-2 transition-all flex items-center justify-between group ${
+                              isSelected ? 'bg-rose-50 border-rose-200' : 'bg-white border-slate-100 hover:border-slate-200'
+                           }`}
+                        >
+                           <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                                 isSelected ? 'bg-rose-500 text-white shadow-lg shadow-rose-200' : 'bg-slate-50 text-slate-400'
+                              }`}>
+                                 <Layers size={18} />
+                              </div>
+                              <div className="text-left">
+                                 <p className={`font-black uppercase text-xs tracking-tight ${isSelected ? 'text-rose-900' : 'text-slate-700'}`}>Slot {slot}</p>
+                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{slotRecs.length} Records</p>
+                              </div>
+                           </div>
+                           <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                              isSelected ? 'bg-rose-500 border-rose-500' : 'border-slate-200 group-hover:border-slate-300'
+                           }`}>
+                              {isSelected && <Check size={14} className="text-white" strokeWidth={4} />}
+                           </div>
+                        </button>
+                     );
+                  })}
+               </div>
+
+               <div className="flex justify-end gap-3 pt-2">
+                  <Button variant="secondary" onClick={() => setDeletionModal(null)} disabled={isDeleting}>Cancel</Button>
+                  <Button 
+                     onClick={async () => {
+                        if (selectedSlotsToDelete.length === 0) return;
+                        setIsDeleting(true);
+                        try {
+                           const idsToDelete = deletionModal!.records
+                              .filter(r => selectedSlotsToDelete.includes(r.lectureSlot || 0))
+                              .map(r => r.id);
+                           
+                           await db.deleteAttendanceRecords(idsToDelete);
+                           setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra'));
+                           setDeletionModal(null);
+                        } catch (e) {
+                           alert("Failed to delete selected slots");
+                        } finally {
+                           setIsDeleting(false);
+                        }
+                     }} 
+                     disabled={isDeleting || selectedSlotsToDelete.length === 0}
+                     className="!bg-rose-600 hover:!bg-rose-700"
+                  >
+                     {isDeleting ? <Loader2 className="animate-spin h-4 w-4" /> : <Trash size={16} />}
+                     <span className="ml-2">Delete {selectedSlotsToDelete.length} Slots</span>
                   </Button>
                </div>
             </div>
@@ -1890,6 +1983,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const [attendanceOperator, setAttendanceOperator] = useState<'GE' | 'LE' | 'GT' | 'LT'>('GE'); // GE: >=, LE: <=, GT: >, LT: <
    const [showFilters, setShowFilters] = useState(false);
    const [showDeleteModal, setShowDeleteModal] = useState(false);
+   const [slotsToDeleteInModal, setSlotsToDeleteInModal] = useState<number[]>([]);
    const [isDeleting, setIsDeleting] = useState(false);
 
    // Export Flow State
@@ -2822,41 +2916,49 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       const subjectCode = subjectDetail?.code || '';
       const branchName = metaData.branches[selBranchId] || 'Class';
       
-      const presentUids = new Set(targetRecords.filter(r => r.isPresent).map(r => r.studentId));
-      const totalCount = allBranchStudents.length;
-      const presentCount = presentUids.size;
-
-      const slots = Array.from(new Set(targetRecords.map(r => r.lectureSlot))).filter(Boolean).sort();
+      const slots = Array.from(new Set(targetRecords.map(r => r.lectureSlot))).filter(Boolean).sort((a,b) => (a as number) - (b as number));
 
       let message = `*DAILY ATTENDANCE SUMMARY*\n`;
       message += `*Date:* ${new Date(targetDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n`;
-      if (slots.length > 0) {
-         message += `*Slots:* ${slots.join(', ')}\n`;
-      }
       message += `*Subject:* ${subjectName.toUpperCase()} (${subjectCode})\n`;
       message += `*Faculty:* ${user.displayName}\n`;
       message += `*Class:* ${branchName}\n`;
       message += `-------------------\n`;
-      message += `*Total Present:* ${presentCount}\n`;
-      message += `*Total Absent:* ${totalCount - presentCount}\n`;
-      message += `*Attendance:* ${totalCount === 0 ? 0 : Math.round((presentCount / totalCount) * 100)}%\n`;
-      message += `-------------------\n`;
+
+      // Create a mapping of [studentId][slot] -> isPresent
+      const attendanceMap: Record<string, Record<number, boolean>> = {};
+      targetRecords.forEach(r => {
+         if (!attendanceMap[r.studentId]) attendanceMap[r.studentId] = {};
+         if (r.lectureSlot) attendanceMap[r.studentId][r.lectureSlot] = r.isPresent;
+      });
 
       // Generate Reliable ASCII Table (Mobile Friendly)
       let table = "```\n";
-      table += "+----+--------------+---+\n";
-      table += "| RN | NAME         | S |\n";
-      table += "+----+--------------+---+\n";
+      
+      // Header
+      let headerTop = "+----+--------------+";
+      let headerMid = "| RN | NAME         |";
+      slots.forEach(s => {
+         headerTop += "---+";
+         headerMid += ` L${s}|`;
+      });
+      table += headerTop + "\n" + headerMid + "\n" + headerTop + "\n";
       
       const sortedAll = [...allBranchStudents].sort((a,b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, {numeric: true}));
       
       sortedAll.forEach(s => {
-         const isP = presentUids.has(s.uid);
          const roll = (s.studentData?.rollNo || '00').slice(-2).padStart(2, '0');
          const name = (s.displayName || 'Unknown').split(' ')[0].slice(0, 12).toUpperCase().padEnd(12, ' ');
-         table += `| ${roll} | ${name} | ${isP ? 'P' : 'A'} |\n`;
+         
+         let row = `| ${roll} | ${name} |`;
+         slots.forEach(slot => {
+            const status = attendanceMap[s.uid]?.[slot as number];
+            const char = status === undefined ? '-' : (status ? 'P' : 'A');
+            row += ` ${char} |`;
+         });
+         table += row + "\n";
       });
-      table += "+----+--------------+---+\n```";
+      table += headerTop + "\n```";
 
       message += `\n${table}`;
       message += `\n_Generated via Acro Attendance App_`;
@@ -2887,30 +2989,35 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    };
 
    // --- Delete Handler ---
-   const confirmDelete = async () => {
-      if (!historyFilterDate) return;
-      setIsDeleting(true);
-      try {
-         // Identify records to delete
-         const recordsToDelete = allClassRecords.filter(r => r.date === historyFilterDate);
-         const ids = recordsToDelete.map(r => r.id);
-
-         if (ids.length > 0) {
-            await db.deleteAttendanceRecords(ids);
-
-            // Local Update
-            setAllClassRecords(prev => prev.filter(r => r.date !== historyFilterDate));
-            setSaveMessage('Records Deleted Successfully');
-            setTimeout(() => setSaveMessage(''), 3000);
-         }
-         setShowDeleteModal(false);
-         setHistoryFilterDate(''); // Reset filter after delete
-      } catch (e: any) {
-         alert("Error deleting records: " + e.message);
-      } finally {
-         setIsDeleting(false);
-      }
-   };
+    const confirmDelete = async () => {
+       if (!historyFilterDate || slotsToDeleteInModal.length === 0) return;
+       setIsDeleting(true);
+       try {
+          // Identify records to delete
+          const recordsToDelete = allClassRecords.filter(r => 
+             r.date === historyFilterDate && 
+             slotsToDeleteInModal.includes(r.lectureSlot || 0)
+          );
+          const ids = recordsToDelete.map(r => r.id);
+ 
+          if (ids.length > 0) {
+             await db.deleteAttendanceRecords(ids);
+ 
+             // Local Update
+             setAllClassRecords(prev => prev.filter(r => !ids.includes(r.id)));
+             setSaveMessage('Records Deleted Successfully');
+             setTimeout(() => setSaveMessage(''), 3000);
+          }
+          setShowDeleteModal(false);
+          if (allClassRecords.filter(r => r.date === historyFilterDate && !ids.includes(r.id)).length === 0) {
+             setHistoryFilterDate(''); // Only reset if no slots left for this day
+          }
+       } catch (e: any) {
+          alert("Error deleting records: " + e.message);
+       } finally {
+          setIsDeleting(false);
+       }
+    };
 
    // --- Render Helpers ---
    const SelectionPrompt = () => (
@@ -3382,7 +3489,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            <div className="flex items-center gap-1.5">
                               {historyFilterDate && (
                                  <button
-                                    onClick={() => setShowDeleteModal(true)}
+                                    onClick={() => {
+                                       const dayRecs = allClassRecords.filter(r => r.date === historyFilterDate);
+                                       const daySlots = Array.from(new Set(dayRecs.map(r => r.lectureSlot))).filter(Boolean).sort() as number[];
+                                       setSlotsToDeleteInModal(daySlots);
+                                       setShowDeleteModal(true);
+                                    }}
                                     className="h-8 px-2.5 bg-rose-50 text-rose-600 rounded-lg flex items-center gap-1.5 active:scale-95 transition-all"
                                  >
                                     <Trash className="h-3.5 w-3.5" />
@@ -3898,26 +4010,74 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          {/* Delete Confirmation Modal */}
          <Modal
             isOpen={showDeleteModal}
-            onClose={() => setShowDeleteModal(false)}
-            title="⚠️ Delete Attendance Record"
+            onClose={() => !isDeleting && setShowDeleteModal(false)}
+            title="🗑️ Delete Attendance Records"
          >
-            <div className="space-y-4">
-               <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                  <p className="text-red-800 text-sm font-medium">
-                     Are you sure you want to delete all attendance records for this date?
-                  </p>
-                  <div className="mt-3 text-sm text-red-900 space-y-1">
-                     <p><strong>Subject:</strong> {metaData.subjects[selSubjectId]?.name}</p>
-                     <p><strong>Date:</strong> {historyFilterDate}</p>
-                     <p><strong>Records Found:</strong> {allClassRecords.filter(r => r.date === historyFilterDate).length}</p>
+            <div className="space-y-6">
+               <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100">
+                  <div className="flex items-center gap-3 mb-2">
+                     <div className="w-8 h-8 bg-rose-500 text-white rounded-lg flex items-center justify-center">
+                        <Calendar size={18} />
+                     </div>
+                     <div>
+                        <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Date Selected</p>
+                        <p className="text-sm font-black text-rose-900">{historyFilterDate}</p>
+                     </div>
+                  </div>
+                  <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-2">
+                     <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                     <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest leading-tight">
+                        Records stay in Recycle Bin for 12 hours before permanent deletion
+                     </p>
                   </div>
                </div>
-               <p className="text-xs text-slate-500">This action cannot be undone. All student statuses for this date will be removed.</p>
+
+               <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Slots to Remove</label>
+                  <div className="grid grid-cols-1 gap-2">
+                     {Array.from(new Set(allClassRecords.filter(r => r.date === historyFilterDate).map(r => r.lectureSlot))).filter(Boolean).sort().map(slot => {
+                        const isSelected = slotsToDeleteInModal.includes(slot as number);
+                        const count = allClassRecords.filter(r => r.date === historyFilterDate && r.lectureSlot === slot).length;
+                        return (
+                           <button
+                              key={slot}
+                              onClick={() => {
+                                 setSlotsToDeleteInModal(prev => 
+                                    prev.includes(slot as number) ? prev.filter(s => s !== slot) : [...prev, slot as number]
+                                 );
+                              }}
+                              className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all ${
+                                 isSelected ? 'border-rose-500 bg-rose-50 text-rose-900' : 'border-slate-100 bg-white text-slate-600'
+                              }`}
+                           >
+                              <div className="flex items-center gap-3">
+                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isSelected ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                    <Layers size={14} />
+                                 </div>
+                                 <div className="text-left">
+                                    <p className="text-xs font-black uppercase tracking-tight">Slot {slot}</p>
+                                    <p className="text-[9px] font-bold opacity-60 uppercase">{count} Students</p>
+                                 </div>
+                              </div>
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${isSelected ? 'bg-rose-500 border-rose-500' : 'border-slate-200'}`}>
+                                 {isSelected && <Check size={12} className="text-white" strokeWidth={4} />}
+                              </div>
+                           </button>
+                        );
+                     })}
+                  </div>
+               </div>
 
                <div className="flex justify-end gap-3 pt-2">
-                  <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
-                  <Button variant="danger" onClick={confirmDelete} disabled={isDeleting} className="min-w-[120px] justify-center flex">
-                     {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Deleting...</> : 'Confirm Delete'}
+                  <Button variant="secondary" onClick={() => setShowDeleteModal(false)} disabled={isDeleting}>Cancel</Button>
+                  <Button 
+                     variant="danger" 
+                     onClick={confirmDelete} 
+                     disabled={isDeleting || slotsToDeleteInModal.length === 0} 
+                     className="!bg-rose-600 hover:!bg-rose-700 min-w-[140px]"
+                  >
+                     {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash size={16} className="mr-2" />}
+                     <span>Delete {slotsToDeleteInModal.length} Slots</span>
                   </Button>
                </div>
             </div>

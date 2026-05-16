@@ -191,7 +191,7 @@ const App: React.FC = () => {
                 <Route path="reports" element={<AdminDashboard />} />
                 <Route path="system" element={<AdminDashboard />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
-                <Route path="recycle-bin" element={<RecycleBin branchId="ALL" metaData={{}} />} />
+                <Route path="recycle-bin" element={<RecycleBin branchId="ALL" metaData={{}} user={user!} />} />
                 <Route path="legal" element={<LegalView />} />
                 <Route path="report" element={<BugReport />} />
                 <Route path="*" element={<Navigate to="/admin/students" replace />} />
@@ -215,7 +215,7 @@ const App: React.FC = () => {
                 <Route path="marks" element={<FacultyDashboard user={user!} />} />
                 <Route path="coordinator" element={<FacultyDashboard user={user!} />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
-                <Route path="recycle-bin" element={<RecycleBin branchId="ALL" metaData={{}} />} />
+                <Route path="recycle-bin" element={<RecycleBin branchId="ALL" metaData={{}} user={user!} />} />
                 <Route path="legal" element={<LegalView />} />
                 <Route path="report" element={<BugReport />} />
                 <Route path="*" element={<Navigate to="/faculty/mark" replace />} />
@@ -229,7 +229,7 @@ const App: React.FC = () => {
             <DashboardLayout title="Class Coordinator Dashboard">
               <Routes>
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
-                <Route path="recycle-bin" element={<RecycleBin branchId="ALL" metaData={{}} />} />
+                <Route path="recycle-bin" element={<RecycleBin branchId="ALL" metaData={{}} user={user!} />} />
                 <Route path="legal" element={<LegalView />} />
                 <Route path="report" element={<BugReport />} />
                 <Route path="*" element={<FacultyDashboard user={user!} forceCoordinatorView={true} />} />
@@ -261,7 +261,7 @@ const App: React.FC = () => {
                 <Route path="database" element={<DeveloperDashboard user={user!} />} />
                 <Route path="settings" element={<DeveloperDashboard user={user!} />} />
                 <Route path="notifications" element={<NotificationsPage user={user!} />} />
-                <Route path="recycle-bin" element={<RecycleBin branchId="ALL" metaData={{}} />} />
+                <Route path="recycle-bin" element={<RecycleBin branchId="ALL" metaData={{}} user={user!} />} />
                 <Route path="legal" element={<LegalView />} />
                 <Route path="report" element={<BugReport />} />
                 <Route path="*" element={<Navigate to="/developer/dashboard" replace />} />
