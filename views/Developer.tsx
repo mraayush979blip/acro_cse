@@ -326,6 +326,8 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                 <DBTableCard name="Subjects" alias="Courses" rows={deepStats.subjects?.count || 0} size={deepStats.subjects?.size || "0 KB"} hint="Academic subject definitions" />
                                 <DBTableCard name="Assignments" alias="Teaching" rows={deepStats.assignments?.count || 0} size={deepStats.assignments?.size || "0 KB"} hint="Faculty subject mappings" />
                                 <DBTableCard name="Coordinators" alias="Staff" rows={deepStats.coordinators?.count || 0} size={deepStats.coordinators?.size || "0 KB"} hint="Staff responsible for branches" />
+                                <DBTableCard name="Audit Logs" alias="History" rows={deepStats.audit_logs?.count || 0} size={deepStats.audit_logs?.size || "0 KB"} hint="Traceability for all major actions" />
+                                <DBTableCard name="Deleted Attendance" alias="Recycle" rows={deepStats.deleted_attendance?.count || 0} size={deepStats.deleted_attendance?.size || "0 KB"} hint="Temporary storage for recovery" />
                                 <DBTableCard name="System Engine" alias="Supabase" rows={1} size={deepStats.system?.size || "30.18 MB"} hint="Auth, Realtime, and Indexing Framework" isSystem={true} />
                             </div>
                         </Card>

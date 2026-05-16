@@ -824,11 +824,15 @@ class SupabaseService implements IDataService {
   }
 
   async getDeletedAttendance(branchId: string): Promise<AttendanceRecord[]> {
-    const { data, error } = await supabase
+    let q = supabase
       .from('deleted_attendance')
-      .select('*')
-      .eq('branch_id', branchId)
-      .order('timestamp', { ascending: false });
+      .select('*');
+    
+    if (branchId !== 'ALL') {
+      q = q.eq('branch_id', branchId);
+    }
+    
+    const { data, error } = await q.order('timestamp', { ascending: false });
     if (error) throw error;
     return data.map(r => ({
       id: r.id,
@@ -1190,7 +1194,7 @@ class SupabaseService implements IDataService {
   }
 
   async getDeepStats(): Promise<Record<string, { count: number; size: string }>> {
-    const tables = ['profiles', 'attendance', 'marks', 'notifications', 'branches', 'batches', 'subjects', 'assignments', 'coordinators'];
+    const tables = ['profiles', 'attendance', 'marks', 'notifications', 'branches', 'batches', 'subjects', 'assignments', 'coordinators', 'audit_logs', 'deleted_attendance'];
     const results = await Promise.all(tables.map(async (t) => {
       const { count } = await supabase.from(t).select('*', { count: 'exact', head: true });
       return { table: t, count: count || 0 };
@@ -1804,10 +1808,11 @@ class MockService implements IDataService {
   }
 
   async getDeepStats(): Promise<Record<string, { count: number; size: string }>> {
-    const tableKeys = ['profiles', 'attendance', 'marks', 'notifications', 'branches', 'batches', 'subjects', 'assignments', 'coordinators'];
+    const tableKeys = ['profiles', 'attendance', 'marks', 'notifications', 'branches', 'batches', 'subjects', 'assignments', 'coordinators', 'audit_logs', 'deleted_attendance'];
     const amsNames: Record<string, string> = {
       profiles: 'ams_users', attendance: 'ams_attendance', marks: 'ams_marks', notifications: 'ams_notifications',
-      branches: 'ams_branches', batches: 'ams_batches', subjects: 'ams_subjects', assignments: 'ams_assignments', coordinators: 'ams_coordinators'
+      branches: 'ams_branches', batches: 'ams_batches', subjects: 'ams_subjects', assignments: 'ams_assignments', 
+      coordinators: 'ams_coordinators', audit_logs: 'ams_audit_logs', deleted_attendance: 'ams_deleted_attendance'
     };
     const stats: Record<string, { count: number; size: string }> = {};
     tableKeys.forEach(k => {
