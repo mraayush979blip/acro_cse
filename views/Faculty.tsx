@@ -6,7 +6,7 @@ import { Button, Card, Modal, Input, Select, ExportProgressModal } from '../comp
 import {
    Save, History, FileDown, Filter, ArrowLeft, CheckCircle2, ChevronDown, Check, X,
    CheckSquare, Square, XCircle, AlertCircle, AlertTriangle, Trash, Loader2,
-   Calendar, RefreshCw, Layers, Eye, BookOpen, User as UserIcon, Activity, Users, Trophy, Upload
+   Calendar, RefreshCw, Layers, Eye, BookOpen, User as UserIcon, Activity, Users, Trophy, Upload, Share2
 } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Skeleton, SkeletonRow, SkeletonCard } from '../components/Skeleton';
@@ -320,7 +320,7 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
          const classAvg = totalStudents === 0 ? 0 : Math.round(studentStats.reduce((acc, curr) => acc + curr.pct, 0) / totalStudents);
 
          const statsInfo = [
-            ["EXECUTIVE SUMMARY", ""],
+            ["ATTENDANCE SUMMARY", ""],
             ["Total Strength", totalStudents.toString()],
             ["Class Average", `${classAvg}%`],
             ["Detention Count (<75%)", detentionCount.toString()],
@@ -503,7 +503,21 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
          await new Promise(r => setTimeout(r, 400));
 
          XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-         XLSX.writeFile(wb, `${branchName}_Summary_Report.xlsx`);
+         
+         // Fix: Use XLSX.write and Blob to avoid 'fs' warning
+         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+         const buf = new ArrayBuffer(wbout.length);
+         const view = new Uint8Array(buf);
+         for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
+         const blob = new Blob([buf], { type: 'application/octet-stream' });
+         const url = URL.createObjectURL(blob);
+         const link = document.createElement("a");
+         link.href = url;
+         link.download = `${branchName}_Summary_Report.xlsx`;
+         document.body.appendChild(link);
+         link.click();
+         document.body.removeChild(link);
+         URL.revokeObjectURL(url);
 
          setProgress(100);
          setStatus('Complete!');
@@ -692,7 +706,20 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
                                  setStatus('Starting download...');
                                  await new Promise(r => setTimeout(r, 500));
 
-                                 XLSX.writeFile(wb, `${branchName}_${examName}_Summary.xlsx`);
+                                  // Fix: Use XLSX.write and Blob to avoid 'fs' warning
+                                 const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+                                 const buf = new ArrayBuffer(wbout.length);
+                                 const view = new Uint8Array(buf);
+                                 for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
+                                 const blob = new Blob([buf], { type: 'application/octet-stream' });
+                                 const url = URL.createObjectURL(blob);
+                                 const link = document.createElement("a");
+                                 link.href = url;
+                                 link.download = `${branchName}_${examName}_Summary.xlsx`;
+                                 document.body.appendChild(link);
+                                 link.click();
+                                 document.body.removeChild(link);
+                                 URL.revokeObjectURL(url);
                               } catch (e: any) {
                                  alert("Failed to export: " + e.message);
                               } finally {
@@ -1375,7 +1402,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                            <RefreshCw className="h-4 w-4 text-indigo-600" />
                         </div>
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                           <span>Active Slots (Max 7)</span>
+                           <span>Lecture Periods (Max 7)</span>
                            <span
                               className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600 cursor-help"
                               title="Select one or more lecture slots before saving attendance."
@@ -1414,7 +1441,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                      <div className="p-2 bg-indigo-50 rounded-xl">
                         <Filter className="h-4 w-4 text-indigo-600" />
                      </div>
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reason for Extra Lecture</label>
+                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reason for Extra Class</label>
                   </div>
                   <textarea
                      value={extraReason}
@@ -1508,7 +1535,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                                     ? 'bg-rose-100 text-rose-600 rotate-[-4deg]'
                                     : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'
                                     }`}>
-                                    <span className="text-[9px] uppercase leading-none opacity-60">S.No</span>
+                                    <span className="text-[9px] uppercase leading-none opacity-60">Roll</span>
                                     <span className="text-sm leading-tight">{s.studentData?.rollNo || '#'}</span>
                                  </div>
 
@@ -1850,7 +1877,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const [idsToDelete, setIdsToDelete] = useState<string[]>([]);
 
    // Multi-Batch Selection State
-   const [selectedMarkingBatches, setSelectedMarkingBatches] = useState<string[]>([]);
+   const [selectedMarkingBatches, setSelectedMarkingBatches] = useState<string[]>([]); // Selected Sections
    const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
 
    // History State
@@ -2141,10 +2168,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
    // --- Handlers ---
    const handleMark = (uid: string) => {
+      if (selectedSlots.length === 0) return;
       setAttendanceStatus(prev => ({ ...prev, [uid]: !prev[uid] }));
    };
 
    const handleMarkAll = (status: boolean) => {
+      if (selectedSlots.length === 0) return;
       const newStatus: Record<string, boolean> = {};
       visibleStudents.forEach(s => newStatus[s.uid] = status);
       setAttendanceStatus(prev => ({ ...prev, ...newStatus }));
@@ -2314,7 +2343,20 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       setExportStatus('Download starting...');
       await new Promise(r => setTimeout(r, 300));
 
-      XLSX.writeFile(wb, `${branchName}_${subject?.code}_${examName}_Marks.xlsx`);
+      // Fix: Use XLSX.write and Blob to avoid 'fs' warning
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+      const buf = new ArrayBuffer(wbout.length);
+      const view = new Uint8Array(buf);
+      for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
+      const blob = new Blob([buf], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${branchName}_${subject?.code}_${examName}_Marks.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       } catch (e: any) {
          alert("Export failed: " + e.message);
       } finally {
@@ -2513,249 +2555,318 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    };
 
    const executeExport = async () => {
-      setLoading(true);
-      setProgress(0);
-      setStatus('Initializing export...');
-      await new Promise(r => setTimeout(r, 400));
-      let recordsToExport = allClassRecords;
-      const start = exportRange === 'CUSTOM' ? exportStartDate : '';
-      const end = exportRange === 'CUSTOM' ? exportEndDate : '';
+      setIsExporting(true);
+      setExportProgress(0);
+      setExportStatus('Initializing export...');
 
-      recordsToExport = allClassRecords.filter(r => {
-         const inStart = !start || r.date >= start;
-         const inEnd = !end || r.date <= end;
-         return r.subjectId === selSubjectId && inStart && inEnd; // Fix: Explicitly filter by current subject
-      });
+      try {
+         await new Promise(r => setTimeout(r, 400));
+         let recordsToExport = allClassRecords;
+         const start = exportRange === 'CUSTOM' ? exportStartDate : '';
+         const end = exportRange === 'CUSTOM' ? exportEndDate : '';
 
-      if (recordsToExport.length === 0) {
-         alert("No records found in the selected range.");
+         recordsToExport = allClassRecords.filter(r => {
+            const inStart = !start || r.date >= start;
+            const inEnd = !end || r.date <= end;
+            return r.subjectId === selSubjectId && inStart && inEnd;
+         });
+
+         if (recordsToExport.length === 0) {
+            alert("No records found in the selected range.");
+            setIsExporting(false);
+            setShowExportModal(false);
+            return;
+         }
+
+         const branchName = metaData.branches[selBranchId] || 'Branch';
+         const subjectDetail = metaData.subjects[selSubjectId];
+         const subjectName = subjectDetail?.name || 'Subject';
+         const subjectCode = subjectDetail?.code || '';
+         const facultyName = user.displayName;
+
+         setExportProgress(20);
+         setExportStatus('Processing attendance records...');
+         await new Promise(r => setTimeout(r, 50));
+         const lookupMap = new Map<string, AttendanceRecord>();
+         recordsToExport.forEach(r => {
+            const key = `${r.studentId}_${r.date}_${r.lectureSlot || 1}`;
+            lookupMap.set(key, r);
+         });
+
+         const slotsMap = new Map<string, { date: string, slot: number }>();
+         recordsToExport.forEach(r => {
+            const slot = r.lectureSlot || 1;
+            const key = `${r.date}_L${slot}`;
+            if (!slotsMap.has(key)) slotsMap.set(key, { date: r.date, slot });
+         });
+
+         const sortedSlots = Array.from(slotsMap.values()).sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return a.slot - b.slot;
+         });
+
+         // Export ALL students in the branch, not just the ones visible/filtered in the UI
+         const sortedStudents = [...allBranchStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
+
+         // --- 1. Headers ---
+         const headerRows = [
+            ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
+            ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
+            [`Attendance Report: ${subjectName} (${subjectCode})`],
+            [`Faculty: ${facultyName} | Class: ${branchName}`],
+            [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
+            [`Generated: ${new Date().toLocaleString()}`],
+            []
+         ];
+
+         const isDetailed = exportFormat === 'DETAILED';
+
+         // --- 2. Stats Calculation ---
+         const studentStatsMap = new Map<string, { present: number, total: number }>();
+         recordsToExport.forEach(r => {
+            const current = studentStatsMap.get(r.studentId) || { present: 0, total: 0 };
+            studentStatsMap.set(r.studentId, {
+               present: current.present + (r.isPresent ? 1 : 0),
+               total: current.total + 1
+            });
+         });
+
+         setExportProgress(50);
+         setExportStatus('Generating analytics...');
+         await new Promise(r => setTimeout(r, 50));
+         const stats = sortedStudents.map(s => {
+            const aggregated = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
+            return { name: s.displayName, pct: aggregated.total === 0 ? 0 : (aggregated.present / aggregated.total) * 100 };
+         });
+         const classAvg = stats.length === 0 ? 0 : Math.round(stats.reduce((acc, curr) => acc + curr.pct, 0) / stats.length);
+         const detentionCount = stats.filter(s => s.pct < 75).length;
+
+         const statsInfo = [
+            ["ATTENDANCE SUMMARY", ""],
+            ["Total Students", sortedStudents.length.toString()],
+            ["Class Average", `${classAvg}%`],
+            ["Detention Count (<75%)", detentionCount.toString()],
+            ["", ""]
+         ];
+
+         // --- 3. Data Assembly ---
+         const dataHeaders = ['Roll No', 'Student Name', 'Enrollment No', 'Classes Held', 'Classes Attended', 'Attendance %'];
+         if (isDetailed) {
+            dataHeaders.push(...sortedSlots.map(s => `${s.date} (L${s.slot})`));
+         }
+
+         let excelRows: any[][] = [...headerRows, ...statsInfo];
+
+         const batchesMap = new Map<string, User[]>();
+         sortedStudents.forEach(s => {
+            const bId = s.studentData?.batchId || 'UNASSIGNED';
+            if (!batchesMap.has(bId)) batchesMap.set(bId, []);
+            batchesMap.get(bId)!.push(s);
+         });
+
+         Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
+            const batchNameStr = metaData.batches[batchId] || batchId;
+
+            excelRows.push([]);
+            excelRows.push([`>>> BATCH: ${batchNameStr} <<<`]);
+            excelRows.push(dataHeaders);
+
+            const batchDataRows = batchStudents.map(s => {
+               const stats = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
+               const presentCount = stats.present;
+               const totalSessions = stats.total;
+               const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
+
+               const row = [s.studentData?.rollNo || '', s.displayName, s.studentData?.enrollmentId || '', totalSessions.toString(), presentCount.toString(), `${pct}%`];
+               if (isDetailed) {
+                  sortedSlots.forEach(slotInfo => {
+                     const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
+                     row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
+                  });
+               }
+               return row;
+            });
+
+            excelRows = excelRows.concat(batchDataRows);
+            excelRows.push([]);
+         });
+
+         setExportProgress(85);
+         setExportStatus('Applying institutional branding...');
+         await new Promise(r => setTimeout(r, 500));
+         const wb = XLSX.utils.book_new();
+         const ws = XLSX.utils.aoa_to_sheet(excelRows);
+
+         // Merges
+         const mergeEndCol = dataHeaders.length - 1;
+         ws['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: mergeEndCol } },
+            { s: { r: 1, c: 0 }, e: { r: 1, c: mergeEndCol } },
+            { s: { r: 2, c: 0 }, e: { r: 2, c: mergeEndCol } },
+            { s: { r: 3, c: 0 }, e: { r: 3, c: mergeEndCol } }
+         ];
+
+         // Auto Width
+         const colWidths = dataHeaders.map((_, colIndex) => {
+            let maxLen = 10;
+            excelRows.forEach((row, ri) => {
+               if (ri < 10) return;
+               if (row[colIndex]) {
+                  const len = row[colIndex].toString().length;
+                  if (len > maxLen) maxLen = len;
+               }
+            });
+            return { wch: maxLen + 4 };
+         });
+         ws['!cols'] = colWidths;
+
+         // --- 4. Apply Colors & Styles ---
+         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+         for (let R = range.s.r; R <= range.e.r; ++R) {
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+               const addr = XLSX.utils.encode_cell({ r: R, c: C });
+               if (!ws[addr]) continue;
+
+               ws[addr].s = {
+                  font: { name: "Calibri", sz: 11 },
+                  alignment: { vertical: "center", horizontal: "left", wrapText: true },
+                  border: {
+                     top: { style: "thin", color: { rgb: "E2E8F0" } },
+                     bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+                     left: { style: "thin", color: { rgb: "E2E8F0" } },
+                     right: { style: "thin", color: { rgb: "E2E8F0" } }
+                  }
+               };
+
+               const rowVal0 = excelRows[R]?.[0]?.toString() || '';
+               if (R >= 0 && R <= 3) {
+                  ws[addr].s.fill = { fgColor: { rgb: "002D62" } };
+                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 14 };
+                  ws[addr].s.alignment.horizontal = "center";
+               }
+               if (R >= 8 && R <= 11 && C === 0) {
+                  ws[addr].s.font.bold = true;
+                  ws[addr].s.fill = { fgColor: { rgb: "F8FAFC" } };
+               }
+               if (rowVal0.startsWith('>>> BATCH')) {
+                  ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
+                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
+                  ws[addr].s.alignment.horizontal = "center";
+               }
+               if (rowVal0 === 'Sr No') {
+                  ws[addr].s.fill = { fgColor: { rgb: "1E293B" } };
+                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
+                  ws[addr].s.alignment.horizontal = "center";
+               }
+               if (rowVal0 && rowVal0 !== 'Sr No' && !rowVal0.startsWith('>>> BATCH') && R > 10 && C === 5) {
+                  const valText = ws[addr].v?.toString() || '';
+                  const val = parseInt(valText);
+                  if (!isNaN(val)) {
+                     if (val >= 90) ws[addr].s.font.color = { rgb: "059669" };
+                     else if (val < 75) ws[addr].s.font.color = { rgb: "DC2626" };
+                     ws[addr].s.font.bold = true;
+                  }
+               }
+            }
+         }
+
+         excelRows.forEach((row, R) => {
+            if (row[0]?.toString().startsWith('>>> BATCH')) {
+               ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: mergeEndCol } });
+            }
+         });
+
+         XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
+         setExportProgress(100);
+         setExportStatus('Starting download...');
+         await new Promise(r => setTimeout(r, 500));
+         
+         // Fix: Use XLSX.write and Blob to avoid 'fs' warning in Vite/Browser
+         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
+         const buf = new ArrayBuffer(wbout.length);
+         const view = new Uint8Array(buf);
+         for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
+         const blob = new Blob([buf], { type: 'application/octet-stream' });
+         const url = URL.createObjectURL(blob);
+         const link = document.createElement("a");
+         link.href = url;
+         link.download = `${subjectCode}_${branchName}_Report.xlsx`;
+         document.body.appendChild(link);
+         link.click();
+         document.body.removeChild(link);
+         URL.revokeObjectURL(url);
+
+      } catch (error) {
+         console.error("Export Error:", error);
+         alert("Export failed. Please check your connection and try again.");
+      } finally {
+         setTimeout(() => {
+            setIsExporting(false);
+            setExportProgress(0);
+            setShowExportModal(false);
+         }, 800);
+      }
+   };
+
+   const handleShareAttendance = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      // Get records for current subject today
+      const todaysRecords = allClassRecords.filter(r => r.date === today && r.subjectId === selSubjectId);
+
+      if (todaysRecords.length === 0) {
+         alert("No attendance records found for today to share.");
          return;
       }
 
-      const branchName = metaData.branches[selBranchId] || 'Branch';
       const subjectDetail = metaData.subjects[selSubjectId];
       const subjectName = subjectDetail?.name || 'Subject';
       const subjectCode = subjectDetail?.code || '';
-      const facultyName = user.displayName;
+      const branchName = metaData.branches[selBranchId] || 'Class';
+      
+      const presentUids = new Set(todaysRecords.filter(r => r.isPresent).map(r => r.studentId));
+      const totalCount = allBranchStudents.length;
+      const presentCount = presentUids.size;
 
-      setProgress(20);
-      setStatus('Processing attendance records...');
-      await new Promise(r => setTimeout(r, 50));
-      const lookupMap = new Map<string, AttendanceRecord>();
-      recordsToExport.forEach(r => {
-         const key = `${r.studentId}_${r.date}_${r.lectureSlot || 1}`;
-         lookupMap.set(key, r);
+      let message = `*DAILY ATTENDANCE SUMMARY*\n`;
+      message += `*Date:* ${new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n`;
+      message += `*Subject:* ${subjectName.toUpperCase()} (${subjectCode})\n`;
+      message += `*Faculty:* ${user.displayName}\n`;
+      message += `*Class:* ${branchName}\n`;
+      message += `-------------------\n`;
+      message += `*Total Present:* ${presentCount}\n`;
+      message += `*Total Absent:* ${totalCount - presentCount}\n`;
+      message += `*Attendance:* ${totalCount === 0 ? 0 : Math.round((presentCount / totalCount) * 100)}%\n`;
+      message += `-------------------\n`;
+
+      // Generate Reliable ASCII Table (Mobile Friendly)
+      let table = "```\n";
+      table += "+----+--------------+---+\n";
+      table += "| RN | NAME         | S |\n";
+      table += "+----+--------------+---+\n";
+      
+      const sortedAll = [...allBranchStudents].sort((a,b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, {numeric: true}));
+      
+      sortedAll.forEach(s => {
+         const isP = presentUids.has(s.uid);
+         const roll = (s.studentData?.rollNo || '00').slice(-2).padStart(2, '0');
+         const name = (s.displayName || 'Unknown').split(' ')[0].slice(0, 12).toUpperCase().padEnd(12, ' ');
+         table += `| ${roll} | ${name} | ${isP ? 'P' : 'A'} |\n`;
       });
+      table += "+----+--------------+---+\n```";
 
-      const slotsMap = new Map<string, { date: string, slot: number }>();
-      recordsToExport.forEach(r => {
-         const slot = r.lectureSlot || 1;
-         const key = `${r.date}_L${slot}`;
-         if (!slotsMap.has(key)) slotsMap.set(key, { date: r.date, slot });
-      });
+      message += `\n${table}`;
+      message += `\n_Generated via Acro Attendance App_`;
+      message += `\n\n_Developed by:_ *Aayush Sharma*\nhttps://itsaayushsharma.vercel.app/`;
 
-      const sortedSlots = Array.from(slotsMap.values()).sort((a, b) => {
-         if (a.date !== b.date) return a.date.localeCompare(b.date);
-         return a.slot - b.slot;
-      });
-
-      const sortedStudents = [...visibleStudents].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
-
-      // --- 1. Headers ---
-      // --- 1. Headers ---
-      const headerRows = [
-         ["ACROPOLIS INSTITUTE OF RESEARCH AND TECHNOLOGY"],
-         ["DEPT OF COMPUTER SCIENCE AND ENGINEERING"],
-         [`Attendance Report: ${subjectName} (${subjectCode})`],
-         [`Faculty: ${facultyName} | Class: ${branchName}`],
-         [`Period: ${exportRange === 'TILL_TODAY' ? 'Full Session' : `${exportStartDate} to ${exportEndDate}`}`],
-         [`Generated: ${new Date().toLocaleString()}`],
-         []
-      ];
-
-      const isDetailed = exportFormat === 'DETAILED';
-
-      // --- 2. Stats Calculation (Optimized O(N+M) instead of O(N*M)) ---
-      const studentStatsMap = new Map<string, { present: number, total: number }>();
-      recordsToExport.forEach(r => {
-         const current = studentStatsMap.get(r.studentId) || { present: 0, total: 0 };
-         studentStatsMap.set(r.studentId, {
-            present: current.present + (r.isPresent ? 1 : 0),
-            total: current.total + 1
-         });
-      });
-
-      setProgress(50);
-      setStatus('Generating analytics...');
-      await new Promise(r => setTimeout(r, 50));
-      const stats = sortedStudents.map(s => {
-         const aggregated = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
-         return { name: s.displayName, pct: aggregated.total === 0 ? 0 : (aggregated.present / aggregated.total) * 100 };
-      });
-      const classAvg = stats.length === 0 ? 0 : Math.round(stats.reduce((acc, curr) => acc + curr.pct, 0) / stats.length);
-      const detentionCount = stats.filter(s => s.pct < 75).length;
-
-      const statsInfo = [
-         ["EXECUTIVE SUMMARY", ""],
-         ["Total Strength", sortedStudents.length.toString()],
-         ["Class Average", `${classAvg}%`],
-         ["Detention Count (<75%)", detentionCount.toString()],
-         ["", ""]
-      ];
-
-      // --- 3. Data Assembly ---
-      const dataHeaders = ['Sr No', 'Name', 'Enrollment', 'Total', 'Present', 'Percentage (%)'];
-      if (isDetailed) {
-         dataHeaders.push(...sortedSlots.map(s => `${s.date} (L${s.slot})`));
-      }
-
-      let excelRows: any[][] = [...headerRows, ...statsInfo];
-
-      const batchesMap = new Map<string, User[]>();
-      sortedStudents.forEach(s => {
-         const bId = s.studentData?.batchId || 'UNASSIGNED';
-         if (!batchesMap.has(bId)) batchesMap.set(bId, []);
-         batchesMap.get(bId)!.push(s);
-      });
-
-      Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
-         const batchNameStr = metaData.batches[batchId] || batchId;
-
-         excelRows.push([]);
-         excelRows.push([`>>> BATCH: ${batchNameStr} <<<`]);
-         excelRows.push(dataHeaders);
-
-         const batchDataRows = batchStudents.map(s => {
-            const stats = studentStatsMap.get(s.uid) || { present: 0, total: 0 };
-            const presentCount = stats.present;
-            const totalSessions = stats.total;
-            const pct = totalSessions === 0 ? 0 : Math.round((presentCount / totalSessions) * 100);
-
-            const row = [s.studentData?.rollNo || '', s.displayName, s.studentData?.enrollmentId || '', totalSessions.toString(), presentCount.toString(), `${pct}%`];
-            if (isDetailed) {
-               sortedSlots.forEach(slotInfo => {
-                  const rec = lookupMap.get(`${s.uid}_${slotInfo.date}_${slotInfo.slot}`);
-                  row.push(rec ? (rec.isPresent ? 'P' : 'A') : '-');
-               });
-            }
-            return row;
-         });
-
-         excelRows = excelRows.concat(batchDataRows);
-         excelRows.push([]);
-         excelRows.push([]);
-      });
-
-      setProgress(85);
-      setStatus('Applying institutional branding...');
-      await new Promise(r => setTimeout(r, 500));
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(excelRows);
-
-      // Merges
-      const mergeEndCol = dataHeaders.length - 1;
-      ws['!merges'] = [
-         { s: { r: 0, c: 0 }, e: { r: 0, c: mergeEndCol } },
-         { s: { r: 1, c: 0 }, e: { r: 1, c: mergeEndCol } },
-         { s: { r: 2, c: 0 }, e: { r: 2, c: mergeEndCol } },
-         { s: { r: 3, c: 0 }, e: { r: 3, c: mergeEndCol } }
-      ];
-
-      // Auto Width
-      const colWidths = dataHeaders.map((_, colIndex) => {
-         let maxLen = 10;
-         excelRows.forEach((row, ri) => {
-            if (ri < 10) return;
-            if (row[colIndex]) {
-               const len = row[colIndex].toString().length;
-               if (len > maxLen) maxLen = len;
-            }
-         });
-         return { wch: maxLen + 4 };
-      });
-      ws['!cols'] = colWidths;
-
-      // --- 4. Apply Colors & Styles ---
-      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-      for (let R = range.s.r; R <= range.e.r; ++R) {
-         for (let C = range.s.c; C <= range.e.c; ++C) {
-            const addr = XLSX.utils.encode_cell({ r: R, c: C });
-            if (!ws[addr]) continue;
-
-            // Base Style
-            ws[addr].s = {
-               font: { name: "Calibri", sz: 11 },
-               alignment: { vertical: "center", horizontal: "left", wrapText: true },
-               border: {
-                  top: { style: "thin", color: { rgb: "E2E8F0" } },
-                  bottom: { style: "thin", color: { rgb: "E2E8F0" } },
-                  left: { style: "thin", color: { rgb: "E2E8F0" } },
-                  right: { style: "thin", color: { rgb: "E2E8F0" } }
-               }
-            };
-
-            const rowVal0 = excelRows[R]?.[0]?.toString() || '';
-
-            // Header Branding (Rows 0-3)
-            if (R >= 0 && R <= 3) {
-               ws[addr].s.fill = { fgColor: { rgb: "002D62" } };
-               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 14 };
-               ws[addr].s.alignment.horizontal = "center";
-            }
-
-            // Stats Headers
-            if (R >= 8 && R <= 11 && C === 0) {
-               ws[addr].s.font.bold = true;
-               ws[addr].s.fill = { fgColor: { rgb: "F8FAFC" } };
-            }
-
-            // Batch Title Row
-            if (rowVal0.startsWith('>>> BATCH')) {
-               ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
-               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
-               ws[addr].s.alignment.horizontal = "center";
-            }
-
-            // Table Header
-            if (rowVal0 === 'Sr No') {
-               ws[addr].s.fill = { fgColor: { rgb: "1E293B" } };
-               ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
-               ws[addr].s.alignment.horizontal = "center";
-            }
-
-            // Attendance % Column Colors (Col 5)
-            if (rowVal0 && rowVal0 !== 'Sr No' && !rowVal0.startsWith('>>> BATCH') && R > 10 && C === 5) {
-               const valText = ws[addr].v?.toString() || '';
-               const val = parseInt(valText);
-               if (!isNaN(val)) {
-                  if (val >= 90) ws[addr].s.font.color = { rgb: "059669" };
-                  else if (val < 75) ws[addr].s.font.color = { rgb: "DC2626" };
-                  ws[addr].s.font.bold = true;
-               }
-            }
+      if (navigator.share) {
+         try {
+            await navigator.share({ title: 'Attendance Report', text: message });
+         } catch (err) {
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
          }
+      } else {
+         window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
       }
-
-      // Merge batch title rows across the whole table
-      excelRows.forEach((row, R) => {
-         if (row[0]?.toString().startsWith('>>> BATCH')) {
-            ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: mergeEndCol } });
-         }
-      });
-
-      XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-      
-      setProgress(100);
-      setStatus('Starting download...');
-      await new Promise(r => setTimeout(r, 500));
-      
-      XLSX.writeFile(wb, `${subjectCode}_${branchName}_Report.xlsx`);
-      
-      setTimeout(() => {
-         setLoading(false);
-         setProgress(0);
-         setShowExportModal(false);
-      }, 800);
    };
 
    const downloadCSV = (rows: string[][], filename: string) => {
@@ -2820,7 +2931,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      <ArrowLeft className="h-5 w-5" />
                   </button>
                   <div className="text-right">
-                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 leading-none">Overall Score</div>
+                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 leading-none">Attendance Score</div>
                      <div className={`text-2xl font-black ${pct < 75 ? 'text-rose-600' : 'text-emerald-600'}`}>{pct}%</div>
                   </div>
                </div>
@@ -2917,17 +3028,17 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const showDashboard = selBranchId && selSubjectId;
 
    return (
-      <div className={`space-y-6 ${showDashboard || forceCoordinatorView ? 'pb-32' : 'pb-6'}`}>
+      <div className={`w-full overflow-x-hidden space-y-6 ${showDashboard || forceCoordinatorView ? 'pb-32' : 'pb-6'}`}>
          {/* 1. Command Center / Top Bar */}
          {!forceCoordinatorView && (
-            <div className="bg-gradient-to-br from-indigo-900 to-indigo-800 p-4 rounded-b-2xl -mx-4 -mt-6 mb-2 shadow-xl shadow-indigo-200/50">
-               <div className="flex items-center gap-3 mb-4">
-                  <div className="h-10 w-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md">
-                     <Layers className="h-6 w-6 text-indigo-100" />
+            <div className="bg-gradient-to-br from-indigo-900 to-indigo-800 p-5 rounded-3xl mb-2 shadow-xl shadow-indigo-200/50 border border-indigo-700/30">
+               <div className="flex items-center gap-3 mb-5">
+                  <div className="h-12 w-12 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md border border-white/10">
+                     <Layers className="h-7 w-7 text-indigo-100" />
                   </div>
                   <div>
-                     <h1 className="text-lg font-black text-white leading-tight">Welcome Back, {user.displayName}!</h1>
-                     <p className="text-indigo-200 text-[10px] font-black tracking-[0.2em] uppercase">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
+                     <h1 className="text-xl font-black text-white leading-tight">Welcome Back, {user.displayName}!</h1>
+                     <p className="text-indigo-200 text-[10px] font-black tracking-[0.2em] uppercase opacity-80">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
                   </div>
                </div>
 
@@ -3013,7 +3124,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
                            {metaData.subjects[selSubjectId]?.type === 'lab' && (
                               <div className="space-y-1 relative">
-                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Batches</label>
+                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Student Groups</label>
                                  <button
                                     onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
                                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 flex justify-between items-center transition-all active:scale-[0.98]"
@@ -3025,7 +3136,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                  {isBatchDropdownOpen && (
                                     <div className="fixed inset-x-4 top-[35%] bg-white border border-slate-200 shadow-2xl rounded-2xl z-[60] p-4 animate-in zoom-in-95 duration-200 max-h-[50vh] overflow-y-auto">
                                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-                                          <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Select Batches</h3>
+                                          <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Select Student Groups</h3>
                                           <button onClick={() => setIsBatchDropdownOpen(false)} className="p-1 hover:bg-slate-100 rounded-full"><X className="h-4 w-4" /></button>
                                        </div>
                                        <div className="grid grid-cols-1 gap-2">
@@ -3054,7 +3165,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            <div className="space-y-1">
                               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                  <span className="inline-flex items-center gap-1.5">
-                                    <span>Lecture Slots</span>
+                                    <span>Lecture Periods</span>
                                     <span
                                        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-black text-indigo-600 cursor-help"
                                        title="Select at least one slot before saving attendance."
@@ -3102,7 +3213,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      </div>
 
                      {/* Mobile Student List (Cards) */}
-                     <div className={`md:hidden space-y-3 pb-20 relative transition-all duration-300`}>
+                     <div className={`md:hidden space-y-3 pb-20 relative transition-all duration-300 ${selectedSlots.length === 0 ? 'opacity-50 pointer-events-none grayscale-[0.5]' : ''}`}>
                         {loadingStudents ? (
                            Array.from({ length: 5 }).map((_, i) => (
                               <div key={i} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-3">
@@ -3133,7 +3244,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                        <div className="flex-1 min-w-0 mr-4">
                                           <div className="flex items-center gap-2 mb-1.5">
                                              <span className={`inline-flex items-center justify-center text-[10px] font-black px-2 py-0.5 rounded-lg tracking-tight ${isPresent ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                SR NO: {s.studentData?.rollNo || '#'}
+                                                ROLL NO: {s.studentData?.rollNo || '#'}
                                              </span>
                                              <span className="text-[10px] font-bold text-slate-900 font-mono tracking-tighter opacity-100 truncate">{s.studentData?.enrollmentId}</span>
                                           </div>
@@ -3165,7 +3276,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      </div>
 
                      {/* Desktop Student List (Table) */}
-                     <div className={`hidden md:block bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden relative transition-all duration-300`}>
+                     <div className={`hidden md:block bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden relative transition-all duration-300 ${selectedSlots.length === 0 ? 'opacity-50 pointer-events-none grayscale-[0.5]' : ''}`}>
                         <table className="w-full text-left border-collapse">
                            <thead className="bg-slate-50 border-b border-slate-200">
                               <tr>
@@ -3263,47 +3374,57 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                   <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xl shadow-slate-100 mb-6">
                      <div className="flex flex-col gap-4">
                         <div className="flex items-center justify-between px-1">
-                           <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Data Logs</h3>
-                           <div className="flex items-center gap-2">
+                           <h3 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-tight truncate mr-2">Attendance History</h3>
+                           <div className="flex items-center gap-1.5">
                               {historyFilterDate && (
                                  <button
                                     onClick={() => setShowDeleteModal(true)}
-                                    className="h-9 px-3 bg-rose-50 text-rose-600 rounded-xl flex items-center gap-2 active:scale-95 transition-all"
+                                    className="h-8 px-2.5 bg-rose-50 text-rose-600 rounded-lg flex items-center gap-1.5 active:scale-95 transition-all"
                                  >
-                                    <Trash className="h-4 w-4" />
-                                    <span className="text-[10px] font-black tracking-widest uppercase">Delete</span>
+                                    <Trash className="h-3.5 w-3.5" />
+                                    <span className="text-[9px] font-black tracking-widest uppercase hidden xs:inline">Delete</span>
                                  </button>
                               )}
                               <button
                                  onClick={() => setShowFilters(!showFilters)}
-                                 className={`h-9 px-3 flex items-center gap-1.5 rounded-xl transition-all ${showFilters ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500'}`}
+                                 className={`h-8 px-2.5 flex items-center gap-1.5 rounded-lg transition-all ${showFilters ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-500'}`}
                               >
-                                 <Filter className="h-4 w-4" />
-                                 <span className="text-[10px] font-black tracking-widest uppercase">Filters</span>
+                                 <Filter className="h-3.5 w-3.5" />
+                                 <span className="text-[9px] font-black tracking-widest uppercase hidden xs:inline">Filters</span>
                               </button>
                            </div>
                         </div>
 
-                        <div className="flex items-center gap-3">
-                           <div className="flex-1 relative">
-                              <label className="absolute left-3 top-2 text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Check specific date</label>
+                        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
+                           <div className="flex-1 min-w-[120px] relative">
+                              <label className="absolute left-3 top-2 text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">View Date</label>
                               <input
                                  type="date"
                                  value={historyFilterDate}
                                  onChange={e => { setHistoryFilterDate(e.target.value); setHistoryTillDate(''); }}
-                                 className="w-full pl-3 pr-3 pt-5 pb-1.5 bg-slate-50 border border-transparent rounded-2xl text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-100 focus:outline-none transition-all appearance-none"
+                                 className="w-full pl-3 pr-3 pt-5 pb-1.5 bg-slate-50 border border-transparent rounded-2xl text-[11px] font-bold text-slate-900 focus:bg-white focus:border-indigo-100 focus:outline-none transition-all appearance-none"
                               />
-                              {historyFilterDate && <button onClick={() => setHistoryFilterDate('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"><XCircle className="h-4 w-4" /></button>}
+                              {historyFilterDate && <button onClick={() => setHistoryFilterDate('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500"><XCircle className="h-3.5 w-3.5" /></button>}
                            </div>
                            <button
                               onClick={handleExportCSV}
-                              className="h-12 px-4 bg-indigo-50 text-indigo-700 rounded-2xl flex items-center gap-2 active:scale-95 transition-all"
+                              className="h-12 px-5 bg-indigo-50 text-indigo-700 rounded-2xl flex items-center gap-2 active:scale-95 transition-all"
                               disabled={allClassRecords.length === 0}
+                              title="Export Detailed Report"
                            >
                               <FileDown className="h-5 w-5" />
-                              <span className="text-[10px] font-black tracking-widest uppercase">Export CSV</span>
+                              <span className="text-[10px] font-black tracking-widest uppercase">Export Report</span>
                            </button>
                         </div>
+
+                        <button
+                           onClick={handleShareAttendance}
+                           className="w-full h-12 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-all border border-emerald-100"
+                           disabled={allClassRecords.length === 0}
+                        >
+                           <Share2 className="h-5 w-5" />
+                           <span className="text-[10px] font-black tracking-widest uppercase">Share Today's Attendance</span>
+                        </button>
 
                         {showFilters && (
                            <div className="bg-slate-50 p-4 rounded-2xl space-y-4 animate-in slide-in-from-top-2 duration-300">

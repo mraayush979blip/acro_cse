@@ -361,206 +361,218 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
    };
 
    return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
-         <div className="flex items-center justify-between pb-4 px-2">
-            <div className="flex items-center gap-3">
-               <div className="p-3 bg-indigo-50 rounded-[1.2rem]"><Layers className="h-5 w-5 text-indigo-600" /></div>
-               <div>
-                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Class Reports</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">Export branch analytics</p>
+      <div className="w-full max-w-full space-y-6 pb-32 md:pb-20 overflow-x-hidden min-w-0 block">
+         {/* 1. Header Section - Strict Block for vertical stacking */}
+         <div className="w-full px-2 block">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 w-full bg-white/40 p-6 rounded-[2rem] border border-slate-100/50">
+               <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="p-2.5 bg-indigo-50 rounded-2xl flex-shrink-0"><Layers className="h-5 w-5 text-indigo-600" /></div>
+                  <div className="min-w-0">
+                     <h3 className="text-lg md:text-xl font-black text-slate-800 uppercase tracking-tight leading-none truncate">Class Reports</h3>
+                     <p className="text-[9px] md:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Export branch analytics</p>
+                  </div>
                </div>
-            </div>
-            <div className="flex gap-4">
-               <div className="text-right">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Classes</div>
-                  <div className="text-xl font-black text-indigo-600 leading-none">{previewStats.sessions}</div>
-               </div>
-               <div className="text-right">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Students</div>
-                  <div className="text-xl font-black text-indigo-600 leading-none">{filteredStudents.length}</div>
+               <div className="grid grid-cols-2 sm:flex gap-4 w-full sm:w-auto bg-slate-50 p-3 rounded-2xl sm:bg-transparent sm:p-0">
+                  <div className="text-left sm:text-right border-r border-slate-200 sm:border-none pr-4 sm:pr-0">
+                     <div className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Classes</div>
+                     <div className="text-lg md:text-xl font-black text-indigo-600 leading-none">{previewStats.sessions}</div>
+                  </div>
+                  <div className="text-right pl-4 sm:pl-0">
+                     <div className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Students</div>
+                     <div className="text-lg md:text-xl font-black text-indigo-600 leading-none">{filteredStudents.length}</div>
+                  </div>
                </div>
             </div>
          </div>
 
-         {/* MST Marks Export Card */}
-         <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden group mb-6">
-            <div className="absolute top-0 right-0 p-8">
-               <Trophy className="h-12 w-12 text-indigo-50 opacity-50 group-hover:scale-110 transition-transform duration-500" />
-            </div>
-            <div className="relative">
-               <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-widest">Performance Export</span>
+         {/* 2. MST Marks Export Card - Mobile Optimized Stack */}
+         <div className="w-full px-2 block">
+            <div className="w-full bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
+               {/* Decorative Background Icon */}
+               <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                  <Trophy className="h-20 w-20 text-indigo-600" />
                </div>
-               <h3 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">MST Marks Summary</h3>
-               <p className="text-slate-500 text-sm font-medium mb-8 max-w-md">Generate a branch-wide report for all subjects. This report includes a side-by-side comparison of marks for every student in your class.</p>
-
-               <div className="flex flex-col md:flex-row items-center gap-6">
-                  <div className="w-full md:w-64">
-                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Select Exam Type</label>
-                     <Select
-                        value={midSemType}
-                        onChange={e => setMidSemType(e.target.value as MidSemType)}
-                        className="w-full bg-slate-50 border-none font-bold text-sm h-12"
-                     >
-                        <option value="MID_SEM_1">MST 1</option>
-                        <option value="MID_SEM_2">MST 2</option>
-                        <option value="MID_SEM_REMEDIAL">Remedial MST</option>
-                     </Select>
+               
+               <div className="relative z-10 w-full flex flex-col items-start">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-full mb-5">
+                     <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
+                     <span className="text-[10px] font-black uppercase tracking-widest">Performance Center</span>
                   </div>
-                  <div className="flex-1 w-full pt-6 md:pt-0">
+                  
+                  <h3 className="text-2xl md:text-3xl font-black text-slate-800 uppercase tracking-tight mb-3">MST Marks Summary</h3>
+                  <p className="text-slate-500 text-xs md:text-base font-medium mb-8 max-w-2xl leading-relaxed">
+                     Generate a comprehensive branch-wide report. This includes student-wise performance for all subjects in a side-by-side Excel format.
+                  </p>
+
+                  <div className="w-full flex flex-col gap-5">
+                     <div className="w-full">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Select Exam Type</label>
+                        <div className="relative w-full">
+                           <Select
+                              value={midSemType}
+                              onChange={e => setMidSemType(e.target.value as MidSemType)}
+                              className="w-full bg-slate-50 border-none font-bold text-sm h-14 rounded-2xl px-5 transition-all focus:bg-slate-100"
+                           >
+                              <option value="MID_SEM_1">Mid Semester Test 1 (MST-1)</option>
+                              <option value="MID_SEM_2">Mid Semester Test 2 (MST-2)</option>
+                              <option value="MID_SEM_REMEDIAL">Remedial / Makeup MST</option>
+                           </Select>
+                        </div>
+                     </div>
+
                      <button
                         onClick={async () => {
-                            setLoading(true);
-                            setProgress(0);
-                            setStatus('Initializing fetch...');
-                            await new Promise(r => setTimeout(r, 600));
-                           try {
-                              setProgress(20);
-                              setStatus('Fetching marks from database...');
-                              await new Promise(r => setTimeout(r, 100));
-                              const marks = await db.getMarksByStudents(students.map(s => s.uid), midSemType);
-                              setProgress(50);
-                              setStatus('Processing subjects and scores...');
-                              await new Promise(r => setTimeout(r, 50));
-                              const examName = midSemType === 'MID_SEM_1' ? 'MST 1' : midSemType === 'MID_SEM_2' ? 'MST 2' : 'Remedial MST';
-                              
-                              const usedSubjectIds = Array.from(new Set(marks.map(m => m.subjectId)));
-                              const branchSubjects = usedSubjectIds.map(sid => {
-                                 const sub = metaData.subjects[sid];
-                                 return sub ? { ...sub, id: sid } : null;
-                              }).filter(Boolean) as any[];
+                             setLoading(true);
+                             setProgress(0);
+                             setStatus('Initializing fetch...');
+                             await new Promise(r => setTimeout(r, 600));
+                            try {
+                               setProgress(20);
+                               setStatus('Fetching marks from database...');
+                               await new Promise(r => setTimeout(r, 100));
+                               const marks = await db.getMarksByStudents(students.map(s => s.uid), midSemType);
+                               setProgress(50);
+                               setStatus('Processing subjects and scores...');
+                               await new Promise(r => setTimeout(r, 50));
+                               const examName = midSemType === 'MID_SEM_1' ? 'MST 1' : midSemType === 'MID_SEM_2' ? 'MST 2' : 'Remedial MST';
+                               
+                               const usedSubjectIds = Array.from(new Set(marks.map(m => m.subjectId)));
+                               const branchSubjects = usedSubjectIds.map(sid => {
+                                  const sub = metaData.subjects[sid];
+                                  return sub ? { ...sub, id: sid } : null;
+                               }).filter(Boolean) as any[];
 
-                              const data = students.map(s => {
-                                 const studentMarks = marks.filter(m => m.studentId === s.uid);
-                                 const row: any = {
-                                    'Student Name': s.displayName,
-                                    'Enrollment Number': s.studentData?.enrollmentId || '',
-                                    'Roll Number': s.studentData?.rollNo || '',
-                                    'Class/Batch': metaData.batches[s.studentData?.batchId || ''] || 'ALL',
-                                 };
-                                 
-                                 branchSubjects.forEach(sub => {
-                                    const m = studentMarks.find(m => m.subjectId === sub.id);
-                                    row[`${sub.name} (${sub.code})`] = m ? (m.marksObtained === -1 ? 'A' : m.marksObtained) : '-';
-                                 });
-                                 
-                                 return row;
-                              });
+                               const data = students.map(s => {
+                                  const studentMarks = marks.filter(m => m.studentId === s.uid);
+                                  const row: any = {
+                                     'Student Name': s.displayName,
+                                     'Enrollment Number': s.studentData?.enrollmentId || '',
+                                     'Roll Number': s.studentData?.rollNo || '',
+                                     'Class/Batch': metaData.batches[s.studentData?.batchId || ''] || 'ALL',
+                                  };
+                                  
+                                  branchSubjects.forEach(sub => {
+                                     const m = studentMarks.find(m => m.subjectId === sub.id);
+                                     row[`${sub.name} (${sub.code})`] = m ? (m.marksObtained === -1 ? 'A' : m.marksObtained) : '-';
+                                  });
+                                  
+                                  return row;
+                               });
 
-                              setProgress(70);
-                              await new Promise(r => setTimeout(r, 50));
-                              setStatus('Generating Excel worksheets...');
-                              await new Promise(r => setTimeout(r, 500));
+                               setProgress(70);
+                               await new Promise(r => setTimeout(r, 50));
+                               setStatus('Generating Excel worksheets...');
+                               await new Promise(r => setTimeout(r, 500));
 
-                              const examTitle = midSemType === 'MID_SEM_1' ? 'MID SEMESTER TEST - I' : midSemType === 'MID_SEM_2' ? 'MID SEMESTER TEST - II' : 'REMEDIAL MST';
-                              const now = new Date();
-                              const currentYear = now.getFullYear();
-                              const session = now.getMonth() >= 6 ? `${currentYear}-${(currentYear + 1) % 100}` : `${currentYear - 1}-${currentYear % 100}`;
-                              
-                              const headerAOA = [
-                                 ['ACROPOLIS INSTITUTE OF TECHNOLOGY AND RESEARCH'],
-                                 ['DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING'],
-                                 [`BRANCH SUMMARY: ${examTitle} | SESSION: ${session}`],
-                                 [`BRANCH: ${branchName.toUpperCase()} | COORDINATOR: ${user.displayName.toUpperCase()}`],
-                                 [`GENERATED ON: ${now.toLocaleDateString()}`],
-                                 []
-                              ];
+                               const examTitle = midSemType === 'MID_SEM_1' ? 'MID SEMESTER TEST - I' : midSemType === 'MID_SEM_2' ? 'MID SEMESTER TEST - II' : 'REMEDIAL MST';
+                               const now = new Date();
+                               const currentYear = now.getFullYear();
+                               const session = now.getMonth() >= 6 ? `${currentYear}-${(currentYear + 1) % 100}` : `${currentYear - 1}-${currentYear % 100}`;
+                               
+                               const headerAOA = [
+                                  ['ACROPOLIS INSTITUTE OF TECHNOLOGY AND RESEARCH'],
+                                  ['DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING'],
+                                  [`BRANCH SUMMARY: ${examTitle} | SESSION: ${session}`],
+                                  [`BRANCH: ${branchName.toUpperCase()} | COORDINATOR: ${user.displayName.toUpperCase()}`],
+                                  [`GENERATED ON: ${now.toLocaleDateString()}`],
+                                  []
+                               ];
 
-                              const tableHeaders = Object.keys(data[0] || {});
-                              const tableData = data.map(row => Object.values(row));
-                              const finalAOA = [...headerAOA, tableHeaders, ...tableData];
+                               const tableHeaders = Object.keys(data[0] || {});
+                               const tableData = data.map(row => Object.values(row));
+                               const finalAOA = [...headerAOA, tableHeaders, ...tableData];
 
-                              const ws = XLSX.utils.aoa_to_sheet(finalAOA);
-                              const wb = XLSX.utils.book_new();
-                              XLSX.utils.book_append_sheet(wb, ws, "MST Marks Summary");
+                               const ws = XLSX.utils.aoa_to_sheet(finalAOA);
+                               const wb = XLSX.utils.book_new();
+                               XLSX.utils.book_append_sheet(wb, ws, "MST Marks Summary");
 
-                              ws['!merges'] = [
-                                 { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
-                                 { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
-                                 { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
-                                 { s: { r: 3, c: 0 }, e: { r: 3, c: tableHeaders.length - 1 } },
-                                 { s: { r: 4, c: 0 }, e: { r: 4, c: tableHeaders.length - 1 } },
-                              ];
+                               ws['!merges'] = [
+                                  { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
+                                  { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
+                                  { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
+                                  { s: { r: 3, c: 0 }, e: { r: 3, c: tableHeaders.length - 1 } },
+                                  { s: { r: 4, c: 0 }, e: { r: 4, c: tableHeaders.length - 1 } },
+                               ];
 
-                              const colWidths = tableHeaders.map((_, colIndex) => {
-                                 let maxLen = tableHeaders[colIndex].length;
-                                 tableData.forEach(row => {
-                                    const len = String(row[colIndex] || '').length;
-                                    if (len > maxLen) maxLen = len;
-                                 });
-                                 return { wch: maxLen + 4 };
-                              });
-                              ws['!cols'] = colWidths;
+                               const colWidths = tableHeaders.map((_, colIndex) => {
+                                  let maxLen = tableHeaders[colIndex].length;
+                                  tableData.forEach(row => {
+                                     const len = String(row[colIndex] || '').length;
+                                     if (len > maxLen) maxLen = len;
+                                  });
+                                  return { wch: maxLen + 4 };
+                               });
+                               ws['!cols'] = colWidths;
 
-                              const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-                              for (let R = range.s.r; R <= range.e.r; ++R) {
-                                 for (let C = range.s.c; C <= range.e.c; ++C) {
-                                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
-                                    if (!ws[addr]) continue;
+                               const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                               for (let R = range.s.r; R <= range.e.r; ++R) {
+                                  for (let C = range.s.c; C <= range.e.c; ++C) {
+                                     const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                                     if (!ws[addr]) continue;
 
-                                    ws[addr].s = {
-                                       font: { name: "Calibri", sz: 11 },
-                                       alignment: { vertical: "center", horizontal: "left" }
-                                    };
+                                     ws[addr].s = {
+                                        font: { name: "Calibri", sz: 11 },
+                                        alignment: { vertical: "center", horizontal: "left" }
+                                     };
 
-                                    if (R >= 0 && R <= 4) {
-                                       ws[addr].s.alignment.horizontal = "center";
-                                       ws[addr].s.font.bold = true;
-                                       if (R === 0) ws[addr].s.font.sz = 16;
-                                       if (R === 1) ws[addr].s.font.sz = 14;
-                                       continue;
-                                    }
+                                     if (R >= 0 && R <= 4) {
+                                        ws[addr].s.alignment.horizontal = "center";
+                                        ws[addr].s.font.bold = true;
+                                        if (R === 0) ws[addr].s.font.sz = 16;
+                                        if (R === 1) ws[addr].s.font.sz = 14;
+                                        continue;
+                                     }
 
-                                    if (R === 6) {
-                                       ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
-                                       ws[addr].s.font.bold = true;
-                                       ws[addr].s.border = {
-                                          bottom: { style: "thin", color: { rgb: "000000" } },
-                                          top: { style: "thin", color: { rgb: "000000" } }
-                                       };
-                                    }
+                                     if (R === 6) {
+                                        ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
+                                        ws[addr].s.font.bold = true;
+                                        ws[addr].s.border = {
+                                           bottom: { style: "thin", color: { rgb: "000000" } },
+                                           top: { style: "thin", color: { rgb: "000000" } }
+                                        };
+                                     }
 
-                                    if (C >= 4 && R > 6) {
-                                       ws[addr].s.alignment.horizontal = "right";
-                                       if (ws[addr].v === 'A') {
-                                          ws[addr].s.font.color = { rgb: "FF0000" };
-                                          ws[addr].s.font.bold = true;
-                                       }
-                                    }
-                                 }
-                              }
+                                     if (C >= 4 && R > 6) {
+                                        ws[addr].s.alignment.horizontal = "right";
+                                        if (ws[addr].v === 'A') {
+                                           ws[addr].s.font.color = { rgb: "FF0000" };
+                                           ws[addr].s.font.bold = true;
+                                        }
+                                     }
+                                  }
+                               }
 
-                              setProgress(90);
-                              await new Promise(r => setTimeout(r, 50));
-                              setStatus('Finalizing report...');
-                              await new Promise(r => setTimeout(r, 600));
+                               setProgress(90);
+                               await new Promise(r => setTimeout(r, 50));
+                               setStatus('Finalizing report...');
+                               await new Promise(r => setTimeout(r, 600));
 
-                              setProgress(100);
-                              setStatus('Starting download...');
-                              await new Promise(r => setTimeout(r, 500));
+                               setProgress(100);
+                               setStatus('Starting download...');
+                               await new Promise(r => setTimeout(r, 500));
 
-                              XLSX.writeFile(wb, `${branchName}_${examName}_Summary.xlsx`);
-                           } catch (e: any) {
-                              alert("Failed to export: " + e.message);
-                           } finally {
-                              setTimeout(() => {
-                                 setLoading(false);
-                                 setProgress(0);
-                              }, 800);
-                           }
-                        }}
+                               XLSX.writeFile(wb, `${branchName}_${examName}_Summary.xlsx`);
+                            } catch (e: any) {
+                               alert("Failed to export: " + e.message);
+                            } finally {
+                               setTimeout(() => {
+                                  setLoading(false);
+                                  setProgress(0);
+                               }, 800);
+                            }
+                         }}
                         disabled={loading || students.length === 0}
-                        className="h-14 w-full md:w-auto px-10 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                        className="w-full h-12 md:h-14 px-6 md:px-10 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest md:tracking-[0.2em] shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 md:gap-3"
                      >
                         {loading ? (
                            <>
                               <Loader2 className="animate-spin h-4 w-4" />
-                              <span>Wait...</span>
+                              <span>Processing...</span>
                            </>
                         ) : (
                            <>
                               <FileDown className="h-4 w-4" />
-                              <span>Download Summary Report</span>
+                              <span>Download MST Report</span>
                            </>
                         )}
                      </button>
@@ -569,16 +581,17 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
             </div>
          </div>
 
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
+         {/* 3. Detail Reports & Filters */}
+         <div className="w-full px-1 grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 block">
+            <div className="w-full bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-6">
                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Time range</label>
-                  <div className="grid grid-cols-2 gap-3">
-                     <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Session</button>
-                     <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Range</button>
+                  <label className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Time range</label>
+                  <div className="grid grid-cols-2 gap-2 md:gap-3">
+                     <button onClick={() => setExportRange('TILL_TODAY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'TILL_TODAY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Session</button>
+                     <button onClick={() => setExportRange('CUSTOM')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportRange === 'CUSTOM' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Range</button>
                   </div>
                   {exportRange === 'CUSTOM' && (
-                     <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
+                     <div className="grid grid-cols-2 gap-2 md:gap-3 animate-in fade-in zoom-in duration-300">
                         <Input type="date" value={exportStartDate} onChange={e => setExportStartDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
                         <Input type="date" value={exportEndDate} onChange={e => setExportEndDate(e.target.value)} className="mb-0 border-none bg-slate-50 font-black text-indigo-900 rounded-xl" />
                      </div>
@@ -587,33 +600,33 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
 
                <div className="space-y-4 pt-4 border-t border-slate-50">
                   <div className="space-y-3">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject Type</label>
-                     <div className="grid grid-cols-3 gap-3">
-                        <button onClick={() => setExportSubjectType('ALL')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'ALL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>All</button>
-                        <button onClick={() => setExportSubjectType('THEORY')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'THEORY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Theory</button>
-                        <button onClick={() => setExportSubjectType('LAB')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${exportSubjectType === 'LAB' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md translate-y-[-2px]' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Lab</button>
+                     <label className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Subject Type</label>
+                     <div className="grid grid-cols-3 gap-2 md:gap-3">
+                        <button onClick={() => setExportSubjectType('ALL')} className={`p-4 rounded-2xl border transition-all text-[10px] md:text-xs font-black uppercase tracking-widest ${exportSubjectType === 'ALL' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>All</button>
+                        <button onClick={() => setExportSubjectType('THEORY')} className={`p-4 rounded-2xl border transition-all text-[10px] md:text-xs font-black uppercase tracking-widest ${exportSubjectType === 'THEORY' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Theory</button>
+                        <button onClick={() => setExportSubjectType('LAB')} className={`p-4 rounded-2xl border transition-all text-[10px] md:text-xs font-black uppercase tracking-widest ${exportSubjectType === 'LAB' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-md' : 'border-slate-50 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>Lab</button>
                      </div>
                   </div>
                </div>
 
                <div className="space-y-4 pt-4 border-t border-slate-50">
                   <div className="space-y-3">
-                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendance Scope</label>
-                     <div className="grid grid-cols-2 gap-3">
-                        <button onClick={() => setFilterMode('FULL')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${filterMode === 'FULL' ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg translate-y-[-2px]' : 'bg-slate-50 text-slate-500 border-slate-50 hover:bg-slate-100'}`}>Full Class</button>
-                        <button onClick={() => setFilterMode('FILTERED')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${filterMode === 'FILTERED' ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg translate-y-[-2px]' : 'bg-slate-50 text-slate-500 border-slate-50 hover:bg-slate-100'}`}>Filtered</button>
+                     <label className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Attendance Scope</label>
+                     <div className="grid grid-cols-2 gap-2 md:gap-3">
+                        <button onClick={() => setFilterMode('FULL')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${filterMode === 'FULL' ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg' : 'bg-slate-50 text-slate-500 border-slate-50 hover:bg-slate-100'}`}>Full Class</button>
+                        <button onClick={() => setFilterMode('FILTERED')} className={`p-4 rounded-2xl border transition-all text-xs font-black uppercase tracking-widest ${filterMode === 'FILTERED' ? 'bg-indigo-900 text-white border-indigo-900 shadow-lg' : 'bg-slate-50 text-slate-500 border-slate-50 hover:bg-slate-100'}`}>Filtered</button>
                      </div>
                   </div>
                   {filterMode === 'FILTERED' && (
-                     <div className="grid grid-cols-2 gap-3 animate-in fade-in zoom-in duration-300">
-                        <select value={filterCondition} onChange={e => setFilterCondition(e.target.value as any)} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm">
-                           <option value="GE">Above or Equal (&ge;)</option>
-                           <option value="LE">Below or Equal (&le;)</option>
+                     <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 md:gap-3 animate-in fade-in zoom-in duration-300">
+                        <select value={filterCondition} onChange={e => setFilterCondition(e.target.value as any)} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-[10px] md:text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm">
+                           <option value="GE">Above (&ge;)</option>
+                           <option value="LE">Below (&le;)</option>
                            <option value="GT">Strictly Above (&gt;)</option>
                            <option value="LT">Strictly Below (&lt;)</option>
                         </select>
                         <div className="relative">
-                           <input type="number" value={filterValue} onChange={e => setFilterValue(Number(e.target.value))} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
+                           <input type="number" value={filterValue} onChange={e => setFilterValue(Number(e.target.value))} className="w-full p-3 bg-slate-50 border-none rounded-2xl text-[10px] md:text-xs font-black text-indigo-900 uppercase tracking-widest outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm" />
                            <span className="absolute right-4 top-3 text-[10px] text-slate-400 font-black">%</span>
                         </div>
                      </div>
@@ -621,20 +634,20 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
                </div>
             </div>
 
-            <div className="flex flex-col justify-between gap-4">
-               <div className="bg-indigo-50/50 p-6 rounded-[2rem] border border-indigo-100/30 flex-1">
-                  <div className="flex items-center gap-3 mb-4">
-                     <div className="p-2 bg-indigo-100 rounded-xl"><Activity className="h-4 w-4 text-indigo-600" /></div>
-                     <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Report Insights</span>
+            <div className="w-full flex flex-col justify-between gap-4 block">
+               <div className="w-full bg-indigo-50/50 p-6 md:p-8 rounded-[2rem] border border-indigo-100/30 flex-1">
+                  <div className="flex items-center gap-3 mb-6">
+                     <div className="p-2 bg-indigo-100 rounded-xl flex-shrink-0"><Activity className="h-4 w-4 text-indigo-600" /></div>
+                     <span className="text-[9px] md:text-[10px] font-black text-indigo-400 uppercase tracking-widest">Report Insights</span>
                   </div>
-                  <div className="space-y-3">
-                     <div className="flex justify-between items-center text-xs">
+                  <div className="space-y-4">
+                     <div className="flex justify-between items-center text-sm md:text-base">
                         <span className="font-bold text-slate-500">Average Attendance</span>
-                        <span className="font-black text-indigo-600">{averageAttendance}</span>
+                        <span className="font-black text-indigo-600 text-lg md:text-xl">{averageAttendance}</span>
                      </div>
-                     <div className="flex justify-between items-center text-xs">
+                     <div className="flex justify-between items-center text-sm md:text-base">
                         <span className="font-bold text-slate-500">Below 75% Criteria</span>
-                        <span className="font-black text-rose-600">{students.filter(s => {
+                        <span className="font-black text-rose-600 text-lg md:text-xl">{students.filter(s => {
                            const relevantRegular = previewRecords.filter(r => {
                               if (r.studentId !== s.uid || r.subjectId === 'sub_extra') return false;
                               const subj = metaData.subjects[r.subjectId];
@@ -645,13 +658,13 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
                            const present = relevantRegular.filter(r => r.isPresent).length;
                            const pct = previewStats.sessions === 0 ? 0 : (present / previewStats.sessions) * 100;
                            return pct < 75;
-                        }).length} Students</span>
+                        }).length} <span className="text-[10px] uppercase">Students</span></span>
                      </div>
                   </div>
                   <button
                      onClick={executeExport}
                      disabled={loading || filteredStudents.length === 0}
-                     className="mt-8 w-full h-14 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-50 active:scale-95 transition-all flex items-center justify-center gap-2"
+                     className="mt-8 md:mt-12 w-full h-14 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-widest hover:bg-indigo-50 active:scale-95 transition-all flex items-center justify-center gap-2"
                   >
                      <FileDown className="h-4 w-4" />
                      Generate Detail Report

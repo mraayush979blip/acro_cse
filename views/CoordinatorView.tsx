@@ -484,7 +484,43 @@ export const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; me
                      const slots = Array.from(new Set(dayRecs.map(r => r.lectureSlot))).sort();
                      const firstRec = dayRecs[0];
                      return (
-                        <div key={date} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all group"><div className="p-6"><div className="flex flex-col md:flex-row justify-between gap-6"><div className="flex items-start gap-5"><div className="w-16 h-16 bg-slate-50 rounded-2xl flex flex-col items-center justify-center font-black group-hover:bg-indigo-50 transition-colors"><span className="text-[10px] text-slate-400 uppercase leading-none mb-1">Date</span><span className="text-indigo-600 text-sm leading-tight text-center">{new Date(date).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })}</span></div><div className="space-y-3"><div className="flex flex-wrap gap-2">{slots.map(s => (<div key={s} className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 border border-indigo-100"><Layers className="h-3 w-3" />Slot {s}</div>))}</div><div className="flex items-center gap-4"><div className="flex flex-col"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Attendance</span><div className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /><span className="text-xs font-black text-slate-700">{dayRecs.length} Students</span></div></div></div></div></div><div className="flex-1 md:max-w-[40%] bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50"><span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Reason</span><p className="text-xs text-slate-600 font-medium italic leading-relaxed line-clamp-2">"{firstRec?.reason || 'No specific reason'}"</p></div><div className="flex md:flex-col justify-end gap-3 self-end md:self-stretch"><button onClick={async () => { if (confirm(`Delete ALL ${dayRecs.length} entries for ${date}?`)) { await db.deleteAttendanceRecords(dayRecs.map(r => r.id)); setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra')); } }} className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all"><Trash className="h-5 w-5" /></button></div></div></div></div>
+                         <div key={date} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden hover:shadow-md transition-all group">
+                            <div className="p-4 md:p-6">
+                               <div className="flex flex-col gap-4">
+                                  <div className="flex items-start justify-between">
+                                     <div className="flex items-center gap-4">
+                                        <div className="w-14 h-14 bg-slate-50 rounded-2xl flex flex-col items-center justify-center font-black group-hover:bg-indigo-50 transition-colors">
+                                           <span className="text-[9px] text-slate-400 uppercase leading-none mb-1">Date</span>
+                                           <span className="text-indigo-600 text-xs leading-tight text-center">{new Date(date).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })}</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                           <div className="flex flex-wrap gap-1.5">
+                                              {slots.map(s => (
+                                                 <div key={s} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1 border border-indigo-100">
+                                                    <Layers className="h-2.5 w-2.5" />Slot {s}
+                                                 </div>
+                                              ))}
+                                           </div>
+                                           <div className="flex items-center gap-1.5">
+                                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                              <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{dayRecs.length} Students</span>
+                                           </div>
+                                        </div>
+                                     </div>
+                                     <button 
+                                        onClick={async () => { if (confirm(`Delete ALL ${dayRecs.length} entries for ${date}?`)) { await db.deleteAttendanceRecords(dayRecs.map(r => r.id)); setHistory(await db.getAttendance(branchId, 'ALL', 'sub_extra')); } }}
+                                        className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all flex-shrink-0"
+                                     >
+                                        <Trash className="h-4 w-4" />
+                                     </button>
+                                  </div>
+                                  <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100/50">
+                                     <span className="block text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Reason</span>
+                                     <p className="text-[11px] text-slate-600 font-medium italic leading-relaxed line-clamp-2">"{firstRec?.reason || 'No specific reason'}"</p>
+                                  </div>
+                               </div>
+                            </div>
+                         </div>
                      );
                   })}
                </div>

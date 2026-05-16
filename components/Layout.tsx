@@ -331,13 +331,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="flex items-center space-x-3 p-2 hover:bg-indigo-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex items-center space-x-2 p-1.5 hover:bg-indigo-800 rounded-lg transition-colors focus:outline-none"
               >
-                <div className="flex flex-col items-end max-w-[120px] md:max-w-none">
-                  <span className="text-xs md:text-sm font-semibold leading-none truncate w-full text-right">{user.displayName}</span>
-                  <span className="text-[9px] md:text-xs text-indigo-300 uppercase tracking-wider mt-0.5">{displayRole}</span>
+                <div className="flex flex-col items-end max-w-[80px] xs:max-w-[120px] md:max-w-none">
+                  <span className="text-[10px] md:text-sm font-semibold leading-none truncate w-full text-right">{user.displayName}</span>
+                  <span className="text-[8px] md:text-xs text-indigo-300 uppercase tracking-wider mt-0.5">{displayRole}</span>
                 </div>
-                <div className="h-8 w-8 bg-indigo-700 rounded-full flex items-center justify-center border border-indigo-600"><Menu className="h-5 w-5" /></div>
+                <div className="h-8 w-8 bg-indigo-700 rounded-full flex items-center justify-center border border-indigo-600 flex-shrink-0"><Menu className="h-4 w-4" /></div>
               </button>
 
               {isMenuOpen && (
