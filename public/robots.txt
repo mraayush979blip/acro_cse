@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /public/
+Disallow: /admin/
+Disallow: /faculty/
+Disallow: /student/
+Disallow: /coordinator/
+Disallow: /developer/
+
+Sitemap: https://acropolis.vercel.app/sitemap.xml
