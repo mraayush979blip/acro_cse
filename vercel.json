@@ -25,7 +25,7 @@
       "destination": "https://rgowcovsultizysqwrff.supabase.co/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/supabase|.*\\..*$).*)",
       "destination": "/index.html"
     }
   ]
