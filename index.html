@@ -186,67 +186,7 @@
     </div>
   </div>
 
-  <script>
-    // Capture PWA Install Prompt as early as possible
-    window.addEventListener('beforeinstallprompt', (e) => {
-      console.log('PWA: beforeinstallprompt captured globally');
-      e.preventDefault();
-      window.deferredPrompt = e;
-      // Notify React if it's already listening
-      window.dispatchEvent(new CustomEvent('pwa-prompt-captured'));
-    });
-
-    // Fail-safe logic
-    (function () {
-      const checkDelay = 10000; // 10 seconds (more generous)
-      const root = document.getElementById('root');
-      const recovery = document.getElementById('mount-recovery');
-      const splash = document.getElementById('initial-splash');
-
-      const timeoutId = setTimeout(() => {
-        if (root && root.innerHTML === '') {
-          recovery.style.display = 'flex';
-        }
-      }, checkDelay);
-
-      // Observer to hide recovery if app mounts
-      if (root) {
-        const observer = new MutationObserver(() => {
-          if (root.innerHTML !== '') {
-            if (splash) {
-              splash.style.opacity = '0';
-              setTimeout(() => splash.remove(), 500);
-            }
-            recovery.style.display = 'none';
-            clearTimeout(timeoutId);
-            observer.disconnect();
-          }
-        });
-        observer.observe(root, { childList: true });
-      }
-    })();
-
-    function forceAppUpdate() {
-      try {
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(registrations => {
-            for (let registration of registrations) registration.unregister();
-          });
-        }
-        sessionStorage.clear();
-        localStorage.clear();
-
-        // Clear caches if available
-        if ('caches' in window) {
-          caches.keys().then(names => {
-            for (let name of names) caches.delete(name);
-          });
-        }
-      } catch (e) { }
-
-      window.location.href = window.location.origin + window.location.pathname + '?refresh=' + Date.now();
-    }
-  </script>
+  <script src="/init.js"></script>
 
   <script type="module" src="./index.tsx"></script>
 </body>
