@@ -3356,9 +3356,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                     <div
                                        key={s.uid}
                                        onClick={() => handleMark(s.uid)}
-                                       className={`relative pt-5 pb-4 px-4 rounded-3xl backdrop-blur-2xl border border-white/60 transition-all duration-500 ease-out active:scale-[0.95] flex items-center justify-between group overflow-hidden bg-gradient-to-br hover:scale-[1.02] hover:shadow-[0_0_0_1.5px_#000,0_10px_40px_-10px_rgba(0,0,0,0.3)] ${!isPresent ? 'from-rose-500/25 to-transparent shadow-[0_8px_30px_rgb(225,29,72,0.15)] border-rose-200/50' : `${style.grad} shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}`}
+                                       className={`relative pt-5 pb-4 px-4 rounded-3xl border transition-transform duration-200 ease-out active:scale-[0.98] flex items-center justify-between group overflow-hidden bg-white hover:shadow-md ${!isPresent ? 'border-rose-200 shadow-[0_2px_10px_rgb(225,29,72,0.1)]' : `border-slate-100 shadow-sm`}`}
                                     >
-                                       <div className={`absolute left-0 top-0 bottom-0 w-1.5 transition-colors duration-500 ${!isPresent ? 'bg-rose-500' : style.bg}`}></div>
+                                       <div className={`absolute left-0 top-0 bottom-0 w-1.5 transition-colors duration-200 ${!isPresent ? 'bg-rose-500' : style.bg}`}></div>
 
                                        <div className="flex-1 min-w-0 mr-4">
                                           <div className="flex items-center gap-2 mb-1.5">

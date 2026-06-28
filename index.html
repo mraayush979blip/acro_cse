@@ -90,6 +90,8 @@
   }
   </script>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     body {
@@ -128,7 +130,7 @@
   <div id="initial-splash"
     style="position: fixed; inset: 0; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9998; transition: opacity 0.5s ease-out;">
     <div style="margin-bottom: 64px; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">
-      <img src="/splash-512.png" alt="Logo"
+      <img src="/splash-512.png" alt="Logo" fetchpriority="high"
         style="height: 128px; width: 128px; object-fit: contain; transform: scale(1.4);">
     </div>
     <div
