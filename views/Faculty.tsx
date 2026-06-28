@@ -1151,7 +1151,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                      { id: 'SEARCH', label: 'Search', icon: Filter },
                      { id: 'MONITOR', label: 'Monitor', icon: Eye },
                      { id: 'REPORTS', label: 'Reports', icon: FileDown },
-                     { id: 'HISTORY', label: 'History', icon: History }
+                     { id: 'HISTORY', label: 'Preview Attendance', icon: History }
                   ].map((tab) => (
                      <button
                         key={tab.id}
@@ -1178,7 +1178,7 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
                   { id: 'SEARCH', label: 'Search', icon: Filter },
                   { id: 'MONITOR', label: 'Monitor', icon: Eye },
                   { id: 'REPORTS', label: 'Reports', icon: FileDown },
-                  { id: 'HISTORY', label: 'History', icon: History }
+                  { id: 'HISTORY', label: 'Preview Attendance', icon: History }
                ].map((tab) => (
                   <button
                      key={tab.id}
@@ -3196,7 +3196,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                   onClick={() => setActiveTab('HISTORY')}
                   className={`flex-1 py-2.5 font-bold text-xs transition-all flex items-center justify-center rounded-lg ${activeTab === 'HISTORY' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                >
-                  <History className="w-3.5 h-3.5 mr-2" /> History
+                  <History className="w-3.5 h-3.5 mr-2" /> Preview Attendance
                </button>
                <button
                   onClick={() => setActiveTab('MARKS')}
@@ -3548,7 +3548,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               title="Export Detailed Report"
                            >
                               <FileDown className="h-5 w-5" />
-                              <span className="text-[10px] font-black tracking-widest uppercase">Export Report</span>
+                              <span className="text-[10px] font-black tracking-widest uppercase">Download Reports</span>
                            </button>
                         </div>
 
