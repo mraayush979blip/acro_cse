@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe, Book, Coffee } from 'lucide-react';
+import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe, Book, Coffee, Maximize } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
 import { supabase, getYearMode, setYearMode } from '../services/supabase';
@@ -122,6 +122,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
     setIsStandalone(!!checkStandalone);
   }, []);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(e => console.log(e));
+    } else {
+      if (document.exitFullscreen) document.exitFullscreen();
+    }
+  };
 
   const getRolePath = (strict = false) => {
     const intent = sessionStorage.getItem('login_intent');
@@ -312,6 +320,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
 
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1 sm:gap-2">
+              <button
+                onClick={toggleFullScreen}
+                className="p-2 rounded-full hover:bg-indigo-800 transition-colors relative"
+                title="Toggle Fullscreen"
+              >
+                <Maximize className="h-5 w-5 text-indigo-100" />
+              </button>
               <button
                 onClick={() => setIsSupportModalOpen(true)}
                 className="p-2 rounded-full hover:bg-indigo-800 transition-colors relative"

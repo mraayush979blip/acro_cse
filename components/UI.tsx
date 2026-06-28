@@ -28,8 +28,8 @@ export const Banner: React.FC<{
   );
 };
 
-export const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-  <div className={`bg-white rounded-lg shadow-sm border border-slate-200 p-6 ${className}`}>
+export const Card: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, className = '', ...props }) => (
+  <div className={`bg-white rounded-lg shadow-sm border border-slate-200 p-6 ${className}`} {...props}>
     {children}
   </div>
 );
@@ -235,7 +235,7 @@ export const AboutDeveloperModal: React.FC<{ isOpen: boolean; onClose: () => voi
           </p>
 
           {/* Tech Stack Pills (Glassy) */}
-          <div className="w-full mb-6 mt-2">
+          {/* <div className="w-full mb-6 mt-2">
              <div className="flex flex-wrap justify-center gap-1.5">
                {['React', 'Vite', 'TypeScript', 'Tailwind', 'Node.js'].map((tech) => (
                  <span key={tech} className="px-3 py-1.5 bg-white/10 backdrop-blur-md text-white/90 rounded-lg text-[10px] font-medium border border-white/10 shadow-sm cursor-default hover:bg-white/20 transition-colors">
@@ -243,7 +243,7 @@ export const AboutDeveloperModal: React.FC<{ isOpen: boolean; onClose: () => voi
                  </span>
                ))}
              </div>
-          </div>
+          </div> */}
 
           {/* Action Buttons */}
           <div className="w-full flex gap-3">
