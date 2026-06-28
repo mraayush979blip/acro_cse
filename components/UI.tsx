@@ -131,9 +131,9 @@ export const AcropolisLogo: React.FC<{ className?: string; variant?: 'login' | '
   const isDashboard = variant === 'dashboard';
   return (
     <img
-      src={isDashboard ? "https://lh3.googleusercontent.com/d/1KLlB1FydOf1bvIlPFjra9cHsufesouHV" : "/splash-512.png"}
+      src={isDashboard ? "/header_logo.jpg" : "/splash-512.png"}
       alt="Acropolis Logo"
-      className={`${className} object-contain ${!isDashboard ? 'scale-[1.4]' : ''}`}
+      className={`${className} object-contain ${isDashboard ? 'scale-[1.7]' : 'scale-[1.4]'}`}
     />
   );
 };

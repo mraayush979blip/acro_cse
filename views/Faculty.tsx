@@ -3342,15 +3342,23 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                            ))
                         ) : (
                            <>
-                              {visibleStudents.map((s) => {
+                              {visibleStudents.map((s, index) => {
+                                 const rowStyles = [
+                                   { grad: 'from-indigo-500/25 to-transparent', border: 'border-l-indigo-500', bg: 'bg-indigo-500' },
+                                   { grad: 'from-emerald-500/25 to-transparent', border: 'border-l-emerald-500', bg: 'bg-emerald-500' },
+                                   { grad: 'from-amber-500/25 to-transparent', border: 'border-l-amber-500', bg: 'bg-amber-500' },
+                                   { grad: 'from-sky-500/25 to-transparent', border: 'border-l-sky-500', bg: 'bg-sky-500' },
+                                   { grad: 'from-fuchsia-500/25 to-transparent', border: 'border-l-fuchsia-500', bg: 'bg-fuchsia-500' },
+                                 ];
+                                 const style = rowStyles[index % rowStyles.length];
                                  const isPresent = attendanceStatus[s.uid] ?? true;
                                  return (
                                     <div
                                        key={s.uid}
                                        onClick={() => handleMark(s.uid)}
-                                       className={`relative bg-white pt-5 pb-4 px-4 rounded-2xl shadow-sm border transition-all duration-300 active:scale-[0.97] flex items-center justify-between group overflow-hidden ${!isPresent ? 'border-rose-100 bg-rose-50/20' : 'border-slate-100 hover:border-emerald-200'}`}
+                                       className={`relative pt-5 pb-4 px-4 rounded-3xl backdrop-blur-2xl border border-white/60 transition-all duration-500 ease-out active:scale-[0.95] flex items-center justify-between group overflow-hidden bg-gradient-to-br hover:scale-[1.02] hover:shadow-[0_0_0_1.5px_#000,0_10px_40px_-10px_rgba(0,0,0,0.3)] ${!isPresent ? 'from-rose-500/25 to-transparent shadow-[0_8px_30px_rgb(225,29,72,0.15)] border-rose-200/50' : `${style.grad} shadow-[0_8px_30px_rgb(0,0,0,0.04)]`}`}
                                     >
-                                       <div className={`absolute left-0 top-0 bottom-0 w-1 ${isPresent ? 'bg-emerald-400' : 'bg-rose-400'}`}></div>
+                                       <div className={`absolute left-0 top-0 bottom-0 w-1.5 transition-colors duration-500 ${!isPresent ? 'bg-rose-500' : style.bg}`}></div>
 
                                        <div className="flex-1 min-w-0 mr-4">
                                           <div className="flex items-center gap-2 mb-1.5">
@@ -3412,23 +3420,34 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                  ))
                               ) : (
                                  <>
-                                    {visibleStudents.map((s) => (
-                                       <tr key={s.uid} className={`hover:bg-slate-50 transition-colors ${!attendanceStatus[s.uid] ? 'bg-red-50/30' : ''}`}>
-                                          <td className="py-3 px-4 text-slate-900 font-mono text-sm">{s.studentData?.rollNo || '-'}</td>
-                                          <td className="py-3 px-4">
-                                             <div className="font-semibold text-slate-900 text-sm">{s.displayName}</div>
-                                             <div className="text-xs text-slate-900 font-mono">{s.studentData?.enrollmentId}</div>
-                                          </td>
-                                          <td className="py-3 px-4 text-center">
-                                             <div className="flex justify-center">
-                                                <ToggleSwitch
-                                                   checked={attendanceStatus[s.uid] ?? true}
-                                                   onChange={() => handleMark(s.uid)}
-                                                />
-                                             </div>
-                                          </td>
-                                       </tr>
-                                    ))}
+                                    {visibleStudents.map((s, index) => {
+                                       const rowStyles = [
+                                         { grad: 'from-indigo-500/25 to-transparent', border: 'border-l-indigo-500' },
+                                         { grad: 'from-emerald-500/25 to-transparent', border: 'border-l-emerald-500' },
+                                         { grad: 'from-amber-500/25 to-transparent', border: 'border-l-amber-500' },
+                                         { grad: 'from-sky-500/25 to-transparent', border: 'border-l-sky-500' },
+                                         { grad: 'from-fuchsia-500/25 to-transparent', border: 'border-l-fuchsia-500' },
+                                       ];
+                                       const style = rowStyles[index % rowStyles.length];
+                                       const isPresent = attendanceStatus[s.uid] ?? true;
+                                       return (
+                                          <tr key={s.uid} onClick={() => handleMark(s.uid)} className={`cursor-pointer transition-all duration-500 ease-out bg-gradient-to-r border-b border-slate-50/50 hover:bg-white/40 relative z-10 hover:z-30 hover:scale-[1.015] hover:shadow-[0_0_0_1.5px_#000,0_10px_40px_-10px_rgba(0,0,0,0.3)] ${!isPresent ? 'from-rose-500/25 to-transparent' : `${style.grad}`}`}>
+                                             <td className={`py-3 px-4 text-slate-900 font-mono text-sm border-l-[3px] transition-colors duration-500 ${!isPresent ? 'border-l-rose-500' : style.border}`}>{s.studentData?.rollNo || '-'}</td>
+                                             <td className="py-3 px-4">
+                                                <div className="font-semibold text-slate-900 text-sm">{s.displayName}</div>
+                                                <div className="text-xs text-slate-900 font-mono">{s.studentData?.enrollmentId}</div>
+                                             </td>
+                                             <td className="py-3 px-4 text-center">
+                                                <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+                                                   <ToggleSwitch
+                                                      checked={isPresent}
+                                                      onChange={() => handleMark(s.uid)}
+                                                   />
+                                                </div>
+                                             </td>
+                                          </tr>
+                                       );
+                                    })}
                                     {visibleStudents.length === 0 && (
                                        <tr><td colSpan={3} className="p-8 text-center text-slate-400">No students found in selected batches.</td></tr>
                                     )}

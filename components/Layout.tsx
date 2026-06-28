@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe, Book } from 'lucide-react';
+import { LogOut, User as UserIcon, Menu, X, ChevronDown, Settings, Bell, Check, ExternalLink, Trash2, Heart, Download, Smartphone, Activity, AlertCircle, Bug, Linkedin, Code2, Globe, Book, Coffee } from 'lucide-react';
 import { User, UserRole, Notification } from '../types';
 import { db } from '../services/db';
 import { supabase, getYearMode, setYearMode } from '../services/supabase';
 import { AcropolisLogo, Modal, Button, AboutDeveloperModal, ExportProgressModal } from './UI';
+import DeveloperSupportModal from './DeveloperSupportModal';
 
 
 interface LayoutProps {
@@ -106,6 +107,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [actionedStatuses, setActionedStatuses] = useState<Record<string, 'APPROVED' | 'DENIED'>>({});
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -299,17 +301,24 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
               }
             }}
           >
-            <div className="h-10 w-10 bg-white rounded-md p-1 flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110">
+            <div className="h-10 w-10 bg-white rounded-md p-1 flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110 overflow-hidden">
               <AcropolisLogo className="h-full w-full" variant="dashboard" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight group-hover:text-indigo-100 transition-colors">Acropolis AMS</h1>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight group-hover:text-indigo-100 transition-colors truncate max-w-[130px] sm:max-w-none">Acropolis AMS</h1>
               <p className="text-xs text-indigo-200 hidden sm:block">Attendance Management System</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <div>
+            <div className="flex items-center gap-1 sm:gap-2">
+              <button
+                onClick={() => setIsSupportModalOpen(true)}
+                className="p-2 rounded-full hover:bg-indigo-800 transition-colors relative"
+                title="Developer Support"
+              >
+                <Coffee className="h-5 w-5 text-amber-400 hover:text-amber-300" />
+              </button>
               <button
                 onClick={() => {
                   const target = `${getRolePath()}/notifications`;
@@ -333,7 +342,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="flex items-center space-x-2 p-1.5 hover:bg-indigo-800 rounded-lg transition-colors focus:outline-none"
               >
-                <div className="flex flex-col items-end max-w-[80px] xs:max-w-[120px] md:max-w-none">
+                <div className="hidden sm:flex flex-col items-end max-w-[80px] xs:max-w-[120px] md:max-w-none">
                   <span className="text-[10px] md:text-sm font-semibold leading-none truncate w-full text-right">{user.displayName}</span>
                   <span className="text-[8px] md:text-xs text-indigo-300 uppercase tracking-wider mt-0.5">{displayRole}</span>
                 </div>
@@ -408,6 +417,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
                       className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
                     ><UserIcon className="h-4 w-4 mr-3 text-indigo-500" />About Developer</button>
                     <button
+                      onClick={() => { setIsMenuOpen(false); setIsSupportModalOpen(true); }}
+                      className="w-full flex items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
+                    ><Coffee className="h-4 w-4 mr-3 text-amber-600" />Buy Coffee for Developer</button>
+                    <button
                       onClick={() => { setIsMenuOpen(false); onLogout(); }}
                       className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
                     ><LogOut className="h-4 w-4 mr-3" />Sign Out</button>
@@ -463,6 +476,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
 
       <InstallAppModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallClick} canInstall={canInstall} />
       <AboutDeveloperModal isOpen={isDeveloperModalOpen} onClose={() => setIsDeveloperModalOpen(false)} />
+      <DeveloperSupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} featureName="Developer Support" />
     </div>
   );
 };
