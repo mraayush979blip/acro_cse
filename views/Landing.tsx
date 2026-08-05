@@ -83,10 +83,10 @@ export const Landing: React.FC = () => {
           className="relative z-10 max-w-4xl mx-auto"
         >
           <motion.span variants={itemVariants} className="inline-block py-1 px-4 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-xs font-black tracking-widest uppercase mb-6 shadow-sm">
-            Acropolis Student Portal
+            Acropolis Attendance Management System
           </motion.span>
           <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-extrabold tracking-tighter mb-8 leading-tight text-slate-900">
-            Your College Life, <br className="hidden md:block" />
+            Attendance, <br className="hidden md:block" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600">Simplified.</span>
           </motion.h1>
           <motion.p variants={itemVariants} className="text-lg md:text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">

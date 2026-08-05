@@ -4,11 +4,12 @@ import { db } from '../services/db';
 import { supabase } from '../services/supabase';
 import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark, SystemSettings, MidSemType } from '../types';
 import { Card, Button, Input, Select, Modal, FileUploader, ExportProgressModal } from '../components/UI';
-import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings, GripVertical, FileDown, Loader2, Activity, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, EyeOff, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings, GripVertical, FileDown, Loader2, Activity, RefreshCw, MoreVertical } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
 const SystemManagement: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'config' | 'audit'>('config');
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [settings, setSettings] = useState<SystemSettings>({ studentLoginEnabled: true });
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -581,6 +582,15 @@ const StudentManagement: React.FC = () => {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
 
+  // Dropdown state for classes
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => setOpenDropdownId(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
@@ -994,9 +1004,78 @@ const StudentManagement: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {listItems.map((item) => (
-              <div key={item.id} onClick={() => { if (level === 'branches') handleSelectBranch(item); else handleSelectBatch(item); }} className="group border p-4 rounded-lg cursor-pointer bg-slate-50 hover:border-indigo-400 hover:shadow-md flex justify-between items-center">
-                <div className="flex items-center"><span className="font-semibold text-slate-800">{item.name}</span></div>
-                <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="text-slate-400 hover:text-red-600 p-2 opacity-0 group-hover:opacity-100"><Trash2 className="h-4 w-4" /></button>
+              <div key={item.id} onClick={() => { if (level === 'branches') handleSelectBranch(item); else handleSelectBatch(item); }} className={`group border p-4 rounded-xl cursor-pointer hover:shadow-lg flex justify-between items-center transition-all bg-white hover:border-indigo-400 ${level === 'branches' && item.view_only ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}>
+                <div className="flex items-center flex-wrap gap-2">
+                  <span className={`font-bold ${level === 'branches' && item.view_only ? 'text-amber-900' : 'text-slate-800'}`}>{item.name}</span>
+                  {level === 'branches' && (
+                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider ${
+                      item.view_only ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                    }`}>
+                      View Mode: {item.view_only ? 'Enabled' : 'Disabled'}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  {level === 'branches' ? (
+                    <div className="relative" onClick={e => e.stopPropagation()}>
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setOpenDropdownId(openDropdownId === item.id ? null : item.id); 
+                        }} 
+                        className="p-2 text-slate-400 hover:text-indigo-600 rounded-full hover:bg-indigo-50 transition-colors focus:outline-none"
+                      >
+                        <MoreVertical className="h-5 w-5" />
+                      </button>
+                      
+                      {openDropdownId === item.id && (
+                        <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-slate-100 z-50 overflow-hidden transform origin-top-right transition-all">
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setOpenDropdownId(null); 
+                              const newName = prompt('Enter new class name:', item.name); 
+                              if (newName && newName !== item.name) {
+                                db.updateBranchName(item.id, newName).then(loadInitialData).catch(err => alert(err.message));
+                              }
+                            }} 
+                            className="w-full text-left px-4 py-3.5 text-sm hover:bg-slate-50 flex items-center gap-3 text-slate-700 font-medium"
+                          >
+                            <Edit2 className="h-4 w-4 text-indigo-500" /> Edit Class Name
+                          </button>
+                          
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              setOpenDropdownId(null);
+                              if (confirm(`Are you sure you want to ${item.view_only ? 'disable' : 'enable'} view mode for ${item.name}?\n\nIf enabled, regular faculty will NOT be able to add attendance or marks for this class.`)) {
+                                db.updateBranchViewOnly(item.id, !item.view_only).then(loadInitialData).catch(err => alert(err.message));
+                              }
+                            }} 
+                            className="w-full text-left px-4 py-3.5 text-sm hover:bg-slate-50 flex items-center gap-3 text-slate-700 font-medium border-t border-slate-100"
+                          >
+                            {item.view_only ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-amber-500" />}
+                            {item.view_only ? 'Disable View Mode' : 'Enable View Mode'}
+                          </button>
+                          
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              setOpenDropdownId(null);
+                              handleDelete(item.id);
+                            }} 
+                            className="w-full text-left px-4 py-3.5 text-sm hover:bg-red-50 text-red-600 flex items-center gap-3 border-t border-slate-100 font-medium"
+                          >
+                            <Trash2 className="h-4 w-4" /> Delete Class
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }} className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

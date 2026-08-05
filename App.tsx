@@ -1,7 +1,9 @@
 
 import React, { useEffect, useState, lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import { db } from './services/db';
+import { isConfigured, getYearMode } from './services/supabase';
 import { User, UserRole } from './types';
 import { Login } from './views/Login';
 import { Landing } from './views/Landing';
@@ -33,9 +35,47 @@ if (typeof window !== 'undefined') {
   };
 }
 
+const PageTransition = ({ children, className = "h-full w-full" }: { children: React.ReactNode, className?: string }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ duration: 0.2, ease: "easeOut" }}
+    className={className}
+  >
+    {children}
+  </motion.div>
+);
+
 const App: React.FC = () => {
+  if (!isConfigured) {
+    const yearMode = getYearMode();
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
+        <div className="bg-white p-8 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] text-center max-w-md w-full border border-slate-100">
+          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-800 mb-3">{yearMode} Year Under Maintenance</h2>
+          <p className="text-slate-600 mb-8 leading-relaxed">
+            The developer is currently working on setting up the database for this academic year. Please check back later.
+          </p>
+          <button 
+            onClick={() => { localStorage.removeItem('acro_year_mode'); window.location.reload(); }}
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-3 px-4 rounded-xl transition-colors duration-200"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
 
   // Settings / Password Change State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -150,33 +190,36 @@ const App: React.FC = () => {
 
   // Helper to wrap dashboards with Layout
   const DashboardLayout = ({ title, children }: { title: string, children: React.ReactNode }) => (
-    <Layout
-      user={user!}
-      onLogout={handleLogout}
-      onOpenSettings={() => setIsSettingsOpen(true)}
-      title={title}
-    >
-      <Suspense fallback={
-        <div className="p-12 flex flex-col items-center justify-center min-h-[50vh]">
-          <div className="animate-pulse mb-6 opacity-20">
-             <AcropolisLogo className="h-16 w-16" />
+    <PageTransition>
+      <Layout
+        user={user!}
+        onLogout={handleLogout}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        title={title}
+      >
+        <Suspense fallback={
+          <div className="p-12 flex flex-col items-center justify-center min-h-[50vh]">
+            <div className="animate-pulse mb-6 opacity-20">
+               <AcropolisLogo className="h-16 w-16" />
+            </div>
+            <div className="h-1 w-24 bg-slate-50 rounded-full overflow-hidden">
+               <div className="h-full bg-indigo-600/30 animate-progress w-full"></div>
+            </div>
           </div>
-          <div className="h-1 w-24 bg-slate-50 rounded-full overflow-hidden">
-             <div className="h-full bg-indigo-600/30 animate-progress w-full"></div>
-          </div>
-        </div>
-      }>
-        {children}
-      </Suspense>
-    </Layout>
+        }>
+          {children}
+        </Suspense>
+      </Layout>
+    </PageTransition>
   );
 
   return (
     <ErrorBoundary>
-      <Routes>
-        <Route path="/login" element={
-          user ? <Navigate to={getDashboardPath(user.role)} replace /> : <Login onLogin={handleLogin} />
-        } />
+      <AnimatePresence>
+        <Routes location={location} key={location.pathname.split('/')[1] || '/'}>
+          <Route path="/login" element={
+            user ? <Navigate to={getDashboardPath(user.role)} replace /> : <PageTransition><Login onLogin={handleLogin} /></PageTransition>
+          } />
 
         <Route path="/admin/*" element={
           <ProtectedRoute user={user} allowedRoles={[UserRole.ADMIN]}>
@@ -279,9 +322,10 @@ const App: React.FC = () => {
           ) : <Navigate to="/login" replace />
         } />
 
-        <Route path="/" element={user ? <Navigate to={getDashboardPath(user.role)} replace /> : <Landing />} />
+        <Route path="/" element={user ? <Navigate to={getDashboardPath(user.role)} replace /> : <PageTransition><Landing /></PageTransition>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </AnimatePresence>
 
       {/* Vercel Analytics */}
       <Analytics />

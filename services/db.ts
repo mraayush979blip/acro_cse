@@ -1,4 +1,4 @@
-import { supabase, authClient, getYearMode } from './supabase';
+import { supabase, authClient, getYearMode, isConfigured } from './supabase';
 import { User, Branch, Batch, Subject, FacultyAssignment, CoordinatorAssignment, AttendanceRecord, UserRole, Notification, MidSemType, Mark, SystemSettings } from "../types";
 import { SEED_BRANCHES, SEED_BATCHES, SEED_SUBJECTS, SEED_USERS, SEED_ASSIGNMENTS } from "../constants";
 
@@ -12,7 +12,9 @@ interface IDataService {
   // Hierarchy
   getBranches: () => Promise<Branch[]>;
   addBranch: (name: string) => Promise<void>;
+  updateBranchName: (id: string, name: string) => Promise<void>;
   deleteBranch: (id: string) => Promise<void>;
+  updateBranchViewOnly: (branchId: string, viewOnly: boolean) => Promise<void>;
 
   getBatches: (branchId?: string) => Promise<Batch[]>;
   addBatch: (name: string, branchId: string) => Promise<void>;
@@ -44,7 +46,7 @@ interface IDataService {
   removeAssignment: (id: string) => Promise<void>;
 
   getCoordinators: () => Promise<CoordinatorAssignment[]>;
-  getCoordinatorByFaculty: (facultyId: string) => Promise<CoordinatorAssignment | null>;
+  getCoordinatorsByFaculty: (facultyId: string) => Promise<CoordinatorAssignment[]>;
   assignCoordinator: (data: Omit<CoordinatorAssignment, 'id'>) => Promise<void>;
   removeCoordinator: (id: string) => Promise<void>;
 
@@ -296,10 +298,21 @@ class SupabaseService implements IDataService {
   }
   async addBranch(name: string): Promise<void> {
     const id = `b_${Date.now()}`;
-    const { error } = await supabase.from('branches').insert([{ id, name }]);
+    const { error } = await supabase.from('branches').insert([{ id, name, view_only: false }]);
     if (error) throw error;
     this._invalidate('meta_branches');
   }
+  async updateBranchName(id: string, name: string): Promise<void> {
+    const { error } = await supabase.from('branches').update({ name }).eq('id', id);
+    if (error) throw new Error(error.message);
+    this._invalidate('meta_branches');
+  }
+  async updateBranchViewOnly(branchId: string, viewOnly: boolean): Promise<void> {
+    const { error } = await supabase.from('branches').update({ view_only: viewOnly }).eq('id', branchId);
+    if (error) throw error;
+    this._invalidate('meta_branches');
+  }
+
   async deleteBranch(id: string): Promise<void> {
     const { error } = await supabase.from('branches').delete().eq('id', id);
     if (error) throw error;
@@ -726,11 +739,10 @@ class SupabaseService implements IDataService {
     }));
   }
 
-  async getCoordinatorByFaculty(facultyId: string): Promise<CoordinatorAssignment | null> {
-    const { data, error } = await supabase.from('coordinators').select('*').eq('faculty_id', facultyId).maybeSingle();
+  async getCoordinatorsByFaculty(facultyId: string): Promise<CoordinatorAssignment[]> {
+    const { data, error } = await supabase.from('coordinators').select('*').eq('faculty_id', facultyId);
     if (error) throw error;
-    if (!data) return null;
-    return { id: data.id, facultyId: data.faculty_id, branchId: data.branch_id };
+    return data.map(d => ({ id: d.id, facultyId: d.faculty_id, branchId: d.branch_id }));
   }
 
   async assignCoordinator(data: Omit<CoordinatorAssignment, 'id'>): Promise<void> {
@@ -1471,7 +1483,19 @@ class MockService implements IDataService {
   async getBranches() { return this.load('ams_branches', SEED_BRANCHES); }
   async addBranch(name: string) {
     const b = this.load('ams_branches', SEED_BRANCHES);
-    b.push({ id: `b_${Date.now()}`, name });
+    b.push({ id: `b_${Date.now()}`, name, view_only: false });
+    this.save('ams_branches', b);
+  }
+  async updateBranchName(id: string, name: string) {
+    const b = this.load('ams_branches', SEED_BRANCHES);
+    const item = b.find((x: any) => x.id === id);
+    if (item) item.name = name;
+    this.save('ams_branches', b);
+  }
+  async updateBranchViewOnly(branchId: string, viewOnly: boolean) {
+    const b = this.load('ams_branches', SEED_BRANCHES);
+    const item = b.find((x: any) => x.id === branchId);
+    if (item) item.view_only = viewOnly;
     this.save('ams_branches', b);
   }
   async deleteBranch(id: string) {
@@ -1643,9 +1667,9 @@ class MockService implements IDataService {
     return this.load('ams_coordinators', []) as CoordinatorAssignment[];
   }
 
-  async getCoordinatorByFaculty(facultyId: string): Promise<CoordinatorAssignment | null> {
+  async getCoordinatorsByFaculty(facultyId: string): Promise<CoordinatorAssignment[]> {
     const all = this.load('ams_coordinators', []) as CoordinatorAssignment[];
-    return all.find(c => c.facultyId === facultyId) || null;
+    return all.filter(c => c.facultyId === facultyId);
   }
 
   async assignCoordinator(data: Omit<CoordinatorAssignment, 'id'>): Promise<void> {
@@ -1971,5 +1995,4 @@ class MockService implements IDataService {
   }
 }
 
-const hasSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY && !import.meta.env.VITE_SUPABASE_ANON_KEY.includes('placeholder');
-export const db: IDataService = hasSupabaseKey ? new SupabaseService() : new MockService();
+export const db: IDataService = isConfigured ? new SupabaseService() : new MockService();

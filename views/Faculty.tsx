@@ -1843,8 +1843,6 @@ const CoordinatorView: React.FC<{ branchId: string; facultyUser: User; metaData:
    );
 };
 
-
-
 export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinatorView = false }) => {
    /*
     * MARK tab UX behavior:
@@ -1859,13 +1857,15 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
    const [assignments, setAssignments] = useState<FacultyAssignment[]>([]);
    const [coordinatorBranchId, setCoordinatorBranchId] = useState<string | null>(null);
+   const [coordinatorBranchIds, setCoordinatorBranchIds] = useState<string[]>([]);
    const [metaData, setMetaData] = useState<{
       branches: Record<string, string>;
+      lockedBranches: Record<string, boolean>;
       batches: Record<string, string>;
       subjects: Record<string, { name: string, code: string, type?: 'theory' | 'lab' }>;
       faculty: Record<string, string>;
       rawBatches: Batch[];
-   }>({ branches: {}, batches: {}, subjects: {}, faculty: {}, rawBatches: [] });
+   }>({ branches: {}, lockedBranches: {}, batches: {}, subjects: {}, faculty: {}, rawBatches: [] });
    const [loadingInit, setLoadingInit] = useState(true);
    const [loadingStudents, setLoadingStudents] = useState(false);
 
@@ -1898,6 +1898,12 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       // Fallback: If it's not a valid index, assume it's a raw UID (backward compatibility)
       return { selBranchId: urlBranchId, selSubjectId: urlID2 || '' };
    }, [urlBranchId, urlID2, sortedAssignments]);
+
+   const isCoordinatorForClass = useMemo(() => coordinatorBranchIds.includes(selBranchId), [coordinatorBranchIds, selBranchId]);
+   const isViewOnlyLockActive = useMemo(() => {
+      const isLocked = metaData.lockedBranches[selBranchId];
+      return isLocked === true || String(isLocked) === "true";
+   }, [metaData.lockedBranches, selBranchId]);
 
    const setSelection = (brid: string, sid: string) => {
       // Auto-populate batches when subject is selected to ensure student list appears
@@ -1996,9 +2002,9 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    // 1. Initialize Data
    useEffect(() => {
       const init = async () => {
-         const [myAssignments, coordinator] = await Promise.all([
+         const [myAssignments, coordinators] = await Promise.all([
             db.getAssignments(user.uid),
-            db.getCoordinatorByFaculty(user.uid)
+            db.getCoordinatorsByFaculty(user.uid)
          ]);
          const [allBranches, allSubjects, allFaculty] = await Promise.all([
             db.getBranches(),
@@ -2007,7 +2013,11 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          ]);
 
          const branchMap: Record<string, string> = {};
-         allBranches.forEach(b => branchMap[b.id] = b.name);
+         const lockedMap: Record<string, boolean> = {};
+         allBranches.forEach(b => {
+            branchMap[b.id] = b.name;
+            lockedMap[b.id] = b.view_only || false;
+         });
          const subjectMap: Record<string, { name: string, code: string, type?: 'theory' | 'lab' }> = {};
          allSubjects.forEach(s => subjectMap[s.id] = { name: s.name, code: s.code, type: s.type });
          const facultyMap: Record<string, string> = {};
@@ -2016,7 +2026,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          // Fetch Batches for involved branches
          const branchIds = Array.from(new Set([
             ...myAssignments.map(a => a.branchId),
-            ...(coordinator ? [coordinator.branchId] : [])
+            ...coordinators.map(c => c.branchId)
          ]));
          const batchMap: Record<string, string> = {};
          const allBatches: Batch[] = [];
@@ -2026,9 +2036,11 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
             bts.forEach(b => { batchMap[b.id] = b.name; allBatches.push(b); });
          }
 
-         setMetaData({ branches: branchMap, batches: batchMap, subjects: subjectMap, faculty: facultyMap, rawBatches: allBatches });
+         setMetaData({ branches: branchMap, lockedBranches: lockedMap, batches: batchMap, subjects: subjectMap, faculty: facultyMap, rawBatches: allBatches });
          setAssignments(myAssignments);
-         if (coordinator) setCoordinatorBranchId(coordinator.branchId);
+         const coordIds = coordinators.map(c => c.branchId);
+         setCoordinatorBranchIds(coordIds);
+         if (coordIds.length > 0) setCoordinatorBranchId(coordIds[0]); // Default to first coordinator branch
          setLoadingInit(false);
       };
       init();
@@ -2287,6 +2299,14 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const handleSaveMarks = async () => {
       if (!selBranchId || !selSubjectId) return;
       if (!window.confirm("Are you sure you want to save these marks?")) return;
+
+      const latestBranches = await db.getBranches();
+      const currentBranch = latestBranches.find(b => b.id === selBranchId);
+      if (currentBranch?.view_only && !isCoordinatorForClass) {
+         alert("Error: This class is locked by the Admin. Please refresh your page.");
+         return;
+      }
+
       setIsSaving(true);
       try {
          const updates = visibleStudents.map(s => ({
@@ -2464,6 +2484,13 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
    const handleSaveClick = async () => {
       if (selectedSlots.length === 0) return;
       if (visibleStudents.length === 0) { alert("No students selected."); return; }
+
+      const latestBranches = await db.getBranches();
+      const currentBranch = latestBranches.find(b => b.id === selBranchId);
+      if (currentBranch?.view_only && !isCoordinatorForClass) {
+         alert("Error: This class is locked by the Admin. Please refresh your page.");
+         return;
+      }
 
       setIsSaving(true);
       setNetworkError('');
@@ -3020,12 +3047,95 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
     };
 
    // --- Render Helpers ---
-   const SelectionPrompt = () => (
-      <div className="flex flex-col items-center justify-center py-10 px-6 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 animate-in fade-in zoom-in duration-500">
-         <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Ready to Start?</h3>
-         <p className="text-sm text-slate-400 font-medium text-center max-w-[200px]">Select a Class and Subject above to begin marking attendance.</p>
-      </div>
-   );
+   const SelectionPrompt = () => {
+      if (availableBranches.length === 0) {
+         return (
+            <div className="flex flex-col items-center justify-center py-10 px-6 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 animate-in fade-in zoom-in duration-500">
+               <AlertCircle className="w-12 h-12 text-slate-300 mb-3" />
+               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">No Classes Allotted</h3>
+               <p className="text-sm text-slate-400 font-medium text-center max-w-[250px]">You have not been assigned to any classes by the admin yet.</p>
+            </div>
+         );
+      }
+
+      if (!selBranchId) {
+         const uniqueBranches: string[] = [];
+         const seen = new Set<string>();
+         sortedAssignments.forEach(a => {
+            if (!seen.has(a.branchId)) {
+               seen.add(a.branchId);
+               uniqueBranches.push(a.branchId);
+            }
+         });
+
+         return (
+            <div className="flex flex-col py-10 px-6 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 animate-in fade-in zoom-in duration-500">
+               <div className="text-center mb-8">
+                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Ready to Start?</h3>
+                  <p className="text-sm text-slate-500 font-medium max-w-md mx-auto">Select a class from the drop down above, or choose from your allotted classes below.</p>
+               </div>
+               
+               <div className="flex flex-wrap justify-center gap-4 w-full max-w-4xl mx-auto">
+                  {uniqueBranches.map((branchId, idx) => {
+                     const branchName = metaData.branches[branchId] || branchId;
+                     return (
+                        <button
+                           key={idx}
+                           onClick={() => setSelection(branchId, '')}
+                           className="w-full sm:w-[calc(50%-0.5rem)] md:w-[calc(33.333%-0.67rem)] max-w-xs flex flex-col items-center justify-center p-6 bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 transition-all text-center group"
+                        >
+                           <div className="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-3 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                              <Users className="w-6 h-6" />
+                           </div>
+                           <h4 className="font-black text-slate-800 leading-tight mb-1 group-hover:text-indigo-900">
+                              {branchName}
+                           </h4>
+                        </button>
+                     );
+                  })}
+               </div>
+            </div>
+         );
+      }
+
+      const uniqueSubjectsForBranch: string[] = [];
+      const seenSubj = new Set<string>();
+      sortedAssignments.forEach(a => {
+         if (a.branchId === selBranchId && !seenSubj.has(a.subjectId)) {
+            seenSubj.add(a.subjectId);
+            uniqueSubjectsForBranch.push(a.subjectId);
+         }
+      });
+
+      return (
+         <div className="flex flex-col py-10 px-6 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 animate-in fade-in zoom-in duration-500">
+            <div className="text-center mb-8">
+               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Select Subject</h3>
+               <p className="text-sm text-slate-500 font-medium max-w-md mx-auto">Select a subject from the drop down above, or choose from your allotted subjects below.</p>
+            </div>
+            
+            <div className="flex flex-wrap justify-center gap-4 w-full max-w-4xl mx-auto">
+               {uniqueSubjectsForBranch.map((subjId, idx) => {
+                  const subject = metaData.subjects[subjId];
+                  return (
+                     <button
+                        key={idx}
+                        onClick={() => setSelection(selBranchId, subjId)}
+                        className="w-full sm:w-[calc(50%-0.5rem)] md:w-[calc(33.333%-0.67rem)] max-w-xs flex flex-col items-start p-4 bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 transition-all text-left group"
+                     >
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-widest mb-2 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                           {subject?.code || 'SUB'} • {subject?.type === 'lab' ? 'LAB' : 'THEORY'}
+                        </div>
+                        <h4 className="font-black text-slate-800 leading-tight mb-1 group-hover:text-indigo-900 line-clamp-2">
+                           {subject?.name || 'Unknown Subject'}
+                        </h4>
+                     </button>
+                  );
+               })}
+            </div>
+         </div>
+      );
+   };
 
    // Drill Down View
    if (viewHistoryStudent) {
@@ -3184,7 +3294,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          )}
 
          {/* 2. Tabs */}
-         {!forceCoordinatorView && (
+         {!forceCoordinatorView && showDashboard && (
             <div className="flex bg-slate-100/50 p-1 rounded-xl mb-4">
                <button
                   onClick={() => setActiveTab('MARK')}
@@ -3209,6 +3319,15 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
          {activeTab === 'MARK' && (
             !showDashboard ? <SelectionPrompt /> : (
+               isViewOnlyLockActive ? (
+                  <div className="flex flex-col items-center justify-center p-12 bg-rose-50 border border-rose-200 rounded-3xl text-center space-y-4">
+                     <AlertCircle className="w-16 h-16 text-rose-500 mb-2" />
+                     <h3 className="text-xl font-black text-rose-900 uppercase tracking-tight">View Only Mode is Enabled</h3>
+                     <p className="text-sm font-bold text-rose-700 max-w-md mx-auto">
+                        Admin has set this class to View-Only mode. You cannot add or edit attendance.
+                     </p>
+                  </div>
+               ) : (
                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className={`space-y-4 mb-6`}>
                      <div className={`p-4 rounded-2xl border transition-all ${isEditMode ? 'bg-orange-50/50 border-orange-200' : 'bg-slate-50/50 border-slate-200'}`}>
@@ -3495,6 +3614,7 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                      </div>
                   </div>
                </div>
+            )
             )
          )}
 
@@ -3783,6 +3903,15 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          {activeTab === 'MARKS' && (
             !showDashboard ? <SelectionPrompt /> : (
                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {isViewOnlyLockActive && (
+                     <div className="mb-6 flex items-center justify-center p-4 bg-rose-50 border border-rose-200 rounded-2xl text-center space-x-3">
+                        <AlertCircle className="w-6 h-6 text-rose-500" />
+                        <div className="text-left">
+                           <h4 className="text-sm font-black text-rose-900 uppercase tracking-tight leading-none">View Only Mode is Enabled</h4>
+                           <p className="text-[10px] font-bold text-rose-700">You can view MST marks but cannot edit or save them.</p>
+                        </div>
+                     </div>
+                  )}
                   <div className="space-y-4 mb-6">
                      <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
                         <div className="grid grid-cols-2 gap-4">
@@ -3831,28 +3960,31 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                                           <div className="flex items-center justify-end gap-3">
                                              <button
                                                 onClick={() => {
+                                                   if (isViewOnlyLockActive) return;
                                                    const isCurrentlyAbsent = marksData[s.uid] === -1;
                                                    setMarksData(prev => ({ ...prev, [s.uid]: isCurrentlyAbsent ? 0 : -1 }));
                                                 }}
+                                                disabled={isViewOnlyLockActive}
                                                 className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-sm ${marksData[s.uid] === -1 
                                                    ? 'bg-rose-600 text-white shadow-rose-100' 
-                                                   : 'bg-white border border-slate-200 text-slate-400 hover:border-rose-200 hover:text-rose-600'}`}
+                                                   : 'bg-white border border-slate-200 text-slate-400 hover:border-rose-200 hover:text-rose-600'} ${isViewOnlyLockActive ? 'opacity-50 cursor-not-allowed' : ''}`}
                                              >
                                                 {marksData[s.uid] === -1 ? 'Absent' : 'Mark Absent'}
                                              </button>
                                              <div className="flex items-center gap-2">
                                                 <input
                                                    type="number"
-                                                   disabled={marksData[s.uid] === -1}
+                                                   disabled={marksData[s.uid] === -1 || isViewOnlyLockActive}
                                                    value={marksData[s.uid] === -1 ? '' : (marksData[s.uid] ?? '')}
                                                    min="0"
                                                    max={maxMarks}
                                                    onChange={e => {
+                                                      if (isViewOnlyLockActive) return;
                                                       const val = Math.min(maxMarks, Math.max(0, Number(e.target.value)));
                                                       setMarksData(prev => ({ ...prev, [s.uid]: val }));
                                                    }}
                                                    placeholder={marksData[s.uid] === -1 ? 'ABS' : '0'}
-                                                   className={`w-20 text-right px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl font-black focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${marksData[s.uid] === -1 ? 'opacity-30' : 'text-indigo-600'}`}
+                                                   className={`w-20 text-right px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl font-black focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all ${marksData[s.uid] === -1 ? 'opacity-30' : 'text-indigo-600'} ${isViewOnlyLockActive ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''}`}
                                                 />
                                                 <span className="text-[10px] font-black text-slate-300 uppercase">/ {maxMarks}</span>
                                              </div>
@@ -3911,8 +4043,10 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
                               </button>
                               <button
                                  onClick={handleSaveMarks}
-                                 disabled={isSaving || visibleStudents.length === 0}
-                                 className="h-14 px-12 bg-indigo-600 text-white rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50"
+                                 disabled={isSaving || visibleStudents.length === 0 || isViewOnlyLockActive}
+                                 className={`h-14 px-10 text-white rounded-3xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl ${
+                                    isViewOnlyLockActive ? 'bg-slate-300 shadow-none cursor-not-allowed' : 'bg-gradient-to-r from-indigo-500 to-indigo-600 shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:from-indigo-400 hover:to-indigo-500'
+                                 }`}
                               >
                                  {isSaving ? 'Processing...' : 'Save MST Marks'}
                               </button>

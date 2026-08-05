@@ -27,6 +27,7 @@ export interface User {
 export interface Branch {
   id: string;
   name: string;
+  view_only?: boolean;
 }
 
 export interface Batch {

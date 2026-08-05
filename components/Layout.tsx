@@ -457,16 +457,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           </div>
           
           {(user.role === UserRole.ADMIN || user.role === UserRole.DEVELOPER) && (
-            <button
-              onClick={() => {
-                const newMode = currentYearMode === '2nd' ? '3rd' : '2nd';
-                setYearMode(newMode);
+            <select
+              value={currentYearMode}
+              onChange={(e) => {
+                const newMode = e.target.value as '2nd' | '3rd' | '4th';
+                if (confirm(`Switching to ${newMode} Year database. The page will reload.`)) {
+                  setYearMode(newMode);
+                }
               }}
-              className="flex items-center text-sm font-bold bg-white border border-slate-200 hover:border-indigo-300 text-slate-700 hover:text-indigo-700 px-4 py-2 rounded-xl shadow-sm hover:shadow-md transition-all active:scale-95"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-full border border-slate-200 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              <Globe className="h-4 w-4 mr-2" />
-              Switch to {currentYearMode === '2nd' ? '3rd Year' : '2nd Year'}
-            </button>
+              <option value="2nd">2nd Year</option>
+              <option value="3rd">3rd Year</option>
+              <option value="4th">4th Year</option>
+            </select>
           )}
         </div>
         {children}
