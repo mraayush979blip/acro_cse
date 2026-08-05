@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { db } from './services/db';
 import { User, UserRole } from './types';
 import { Login } from './views/Login';
+import { Landing } from './views/Landing';
 import { Layout } from './components/Layout';
 
 // Lazy load heavy views for performance (Code Splitting)
@@ -278,7 +279,7 @@ const App: React.FC = () => {
           ) : <Navigate to="/login" replace />
         } />
 
-        <Route path="/" element={<Navigate to={user ? getDashboardPath(user.role) : "/login"} replace />} />
+        <Route path="/" element={user ? <Navigate to={getDashboardPath(user.role)} replace /> : <Landing />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

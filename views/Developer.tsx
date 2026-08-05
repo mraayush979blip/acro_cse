@@ -2,15 +2,15 @@
 import React, { useState, useEffect } from 'react';
 import {
     Terminal, Database, Activity, Users, Settings, ShieldAlert, Cpu, Server, Zap, RefreshCw,
-    Search, Eye, Lock, Unlock, AlertCircle, Code, Info, HelpCircle, HardDrive
+    Search, Eye, Lock, Unlock, AlertCircle, Code, Info, HelpCircle, HardDrive, MessageSquare, Send
 } from 'lucide-react';
-import { Card, Button, Input, Modal } from '../components/UI';
+import { Card, Button, Input, Modal, Select } from '../components/UI';
 import { db } from '../services/db';
 import { User, SystemSettings } from '../types';
 import { RecycleBin } from './RecycleBin';
 
 export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'logs' | 'database' | 'settings' | 'recycle-bin'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'logs' | 'database' | 'settings' | 'recycle-bin' | 'broadcast'>('overview');
     const [deepStats, setDeepStats] = useState<Record<string, { count: number, size: string }>>({});
     const [storage, setStorage] = useState({ consumed: '0 MB', total: '0 MB', percent: 0 });
     const [latency, setLatency] = useState(0);
@@ -120,6 +120,7 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                     { id: 'logs', icon: Terminal, label: 'Logs', desc: 'Live Events' },
                     { id: 'database', icon: Database, label: 'Database', desc: 'Storage Per Tag' },
                     { id: 'recycle-bin', icon: ShieldAlert, label: 'Recovery', desc: 'Recycle Bin' },
+                    { id: 'broadcast', icon: MessageSquare, label: 'Broadcast', desc: 'Message Students' },
                     { id: 'settings', icon: Settings, label: 'Policies', desc: 'Global Controls' },
                 ].map(tab => (
                     <button
@@ -391,6 +392,10 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                         </Card>
                     </div>
                 )}
+                
+                {activeTab === 'broadcast' && (
+                    <BroadcastManager addLog={addLog} />
+                )}
             </div>
 
             {/* Inspect Modal */}
@@ -571,5 +576,227 @@ const UserManager = ({ addLog, onInspect }: { addLog: any, onInspect: (uid: stri
                 </Card>
             )}
         </div>
+    );
+};
+
+const BroadcastManager = ({ addLog }: { addLog: any }) => {
+    const [messageTemplate, setMessageTemplate] = useState(`Hello {name},
+
+Your current attendance is {attendance}%.
+
+App link: https://acropolis.vercel.app
+Login method:
+- UID: Enrollment No.
+- Password: Mobile No.
+
+Please check AMS.`);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [total, setTotal] = useState(0);
+
+    const [branches, setBranches] = useState<any[]>([]);
+    const [batches, setBatches] = useState<any[]>([]);
+    const [selectedBranchId, setSelectedBranchId] = useState('');
+    const [selectedBatchId, setSelectedBatchId] = useState('');
+    const [students, setStudents] = useState<any[]>([]);
+    
+    // Batching state
+    const [batchSize, setBatchSize] = useState(5);
+    const [batchIndex, setBatchIndex] = useState(0);
+
+    const currentBatchStudents = students.slice(batchIndex * batchSize, (batchIndex + 1) * batchSize);
+    const totalBatches = Math.ceil(students.length / batchSize);
+
+    useEffect(() => {
+        db.getBranches().then(b => {
+            setBranches(b);
+            if (b.length > 0) setSelectedBranchId(b[0].id);
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!selectedBranchId) return;
+        db.getBatches(selectedBranchId).then(b => {
+            setBatches(b);
+            if (b.length > 0) setSelectedBatchId(b[0].id);
+        });
+    }, [selectedBranchId]);
+
+    const handleFetchStudents = async () => {
+        if (!selectedBranchId || !selectedBatchId) return;
+        addLog(`Fetching students for Branch ${selectedBranchId}, Batch ${selectedBatchId}...`, 'info');
+        try {
+            const studs = await db.getStudents(selectedBranchId, selectedBatchId);
+            setStudents(studs);
+            setBatchIndex(0); // Reset on new fetch
+            addLog(`Found ${studs.length} students.`, 'info');
+        } catch (e: any) {
+            addLog(`Failed to fetch students: ${e.message}`, 'error');
+        }
+    };
+
+    const handleBroadcast = async () => {
+        if (!messageTemplate || currentBatchStudents.length === 0) return;
+        setIsProcessing(true);
+        addLog(`Initializing Broadcast Engine for Batch ${batchIndex + 1}...`, 'info');
+        try {
+            setTotal(currentBatchStudents.length);
+            
+            for (let i = 0; i < currentBatchStudents.length; i++) {
+                const s = currentBatchStudents[i];
+                if (!s.studentData?.mobileNo) continue;
+                
+                // Fetch attendance
+                let attendance = 0;
+                try {
+                    const attRecords = await db.getStudentAttendance(s.uid);
+                    const totalLectures = attRecords.length;
+                    const attendedLectures = attRecords.filter((r: any) => r.isPresent).length;
+                    attendance = totalLectures > 0 ? Math.round((attendedLectures / totalLectures) * 100) : 0;
+                } catch(e) {}
+
+                // Replace variables
+                let finalMsg = messageTemplate
+                    .replace('{name}', s.displayName)
+                    .replace('{attendance}', attendance.toString());
+                
+                addLog(`Dispatching to ${s.displayName} (${s.studentData.mobileNo})`, 'info');
+                
+                // Open WhatsApp Web Link in new tab (Automation)
+                const url = `https://wa.me/91${s.studentData.mobileNo}?text=${encodeURIComponent(finalMsg)}`;
+                window.open(url, '_blank');
+                
+                setProgress(i + 1);
+                
+                // Add a delay to let the browser open the tab and not crash
+                await new Promise(r => setTimeout(r, 1500));
+            }
+            addLog(`Broadcast sequence completed for Batch ${batchIndex + 1}.`, 'info');
+            
+            // Auto-increment batch index if more batches exist
+            if (batchIndex < totalBatches - 1) {
+                setBatchIndex(prev => prev + 1);
+            }
+        } catch (e: any) {
+            addLog(`Broadcast failed: ${e.message}`, 'error');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    return (
+        <Card className="border-indigo-200 shadow-xl shadow-indigo-900/5">
+            <h3 className="font-black text-slate-800 uppercase tracking-tighter flex items-center gap-2 mb-6">
+                <MessageSquare className="h-5 w-5 text-indigo-600" />
+                WhatsApp Automation Broadcast
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Select Branch</label>
+                    <Select value={selectedBranchId} onChange={(e: any) => setSelectedBranchId(e.target.value)}>
+                        {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </Select>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Select Batch (Class)</label>
+                    <div className="flex gap-2">
+                        <Select value={selectedBatchId} onChange={(e: any) => setSelectedBatchId(e.target.value)} className="flex-1">
+                            {batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        </Select>
+                        <Button onClick={handleFetchStudents} className="shrink-0 text-xs py-2 px-4 uppercase font-black">Fetch Students</Button>
+                    </div>
+                </div>
+            </div>
+
+            {students.length > 0 && (
+                <div className="mb-6">
+                    <div className="flex justify-between items-end mb-3">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                            Target Students (Batch {batchIndex + 1} of {totalBatches})
+                        </h4>
+                        <div className="flex items-center gap-2">
+                            <label className="text-[10px] font-black uppercase text-slate-500">Batch Size:</label>
+                            <Select 
+                                value={batchSize} 
+                                onChange={(e: any) => { setBatchSize(Number(e.target.value)); setBatchIndex(0); }} 
+                                className="py-1 px-2 text-xs"
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-3 divide-y divide-slate-200 scrollbar-thin scrollbar-thumb-slate-300">
+                        {currentBatchStudents.map(s => (
+                            <div key={s.uid} className="py-2 flex justify-between items-center text-sm">
+                                <span className="font-bold text-slate-800">{s.displayName}</span>
+                                <span className="text-xs text-slate-500 font-mono">{s.studentData?.mobileNo || 'No Mobile'}</span>
+                            </div>
+                        ))}
+                    </div>
+                    {totalBatches > 1 && (
+                        <div className="flex justify-between items-center mt-3 bg-white border border-slate-200 p-2 rounded-lg">
+                            <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                onClick={() => setBatchIndex(Math.max(0, batchIndex - 1))}
+                                disabled={batchIndex === 0 || isProcessing}
+                            >
+                                Previous Batch
+                            </Button>
+                            <span className="text-xs font-black text-slate-600">Showing {batchIndex * batchSize + 1} to {Math.min((batchIndex + 1) * batchSize, students.length)} of {students.length} total students</span>
+                            <Button 
+                                variant="secondary" 
+                                size="sm" 
+                                onClick={() => setBatchIndex(Math.min(totalBatches - 1, batchIndex + 1))}
+                                disabled={batchIndex === totalBatches - 1 || isProcessing}
+                            >
+                                Next Batch
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            <div className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+                    <h4 className="text-sm font-black text-amber-800 uppercase">Important Note</h4>
+                    <p className="text-xs text-amber-700 mt-1">This tool automates WhatsApp Web. It will open a new tab for each student. You must have WhatsApp Web logged in, and you will need to manually click "Send" on each tab.</p>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Message Template</label>
+                    <textarea 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition-all h-48"
+                        value={messageTemplate}
+                        onChange={e => setMessageTemplate(e.target.value)}
+                        placeholder="Type your message here. Use {name} and {attendance} as variables."
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-tight font-bold">Variables: {'{name}'}, {'{attendance}'}</p>
+                </div>
+                
+                <div className="pt-4 flex items-center justify-between">
+                    <div className="flex-1 mr-4">
+                        {isProcessing && (
+                            <div>
+                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-1 text-indigo-600">
+                                    <span>Progress</span>
+                                    <span>{progress} / {total}</span>
+                                </div>
+                                <div className="h-2 bg-indigo-100 rounded-full overflow-hidden">
+                                    <div className="h-full bg-indigo-600 transition-all duration-300" style={{ width: `${total > 0 ? (progress/total)*100 : 0}%`}}></div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <Button onClick={handleBroadcast} disabled={isProcessing || !messageTemplate || students.length === 0} className="flex items-center gap-2 font-black uppercase text-xs py-3 px-6 shadow-lg shadow-indigo-600/20">
+                        <Send className="h-4 w-4" />
+                        {isProcessing ? 'Broadcasting...' : 'Start Broadcast'}
+                    </Button>
+                </div>
+            </div>
+        </Card>
     );
 };
