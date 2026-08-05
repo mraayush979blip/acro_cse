@@ -28,6 +28,8 @@ export interface Branch {
   id: string;
   name: string;
   view_only?: boolean;
+  hide_from_teacher_student?: boolean;
+  hide_from_coordinator?: boolean;
 }
 
 export interface Batch {

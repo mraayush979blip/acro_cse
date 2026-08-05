@@ -2018,6 +2018,18 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
             branchMap[b.id] = b.name;
             lockedMap[b.id] = b.view_only || false;
          });
+         
+         // Apply new visibility filters
+         const filteredAssignments = myAssignments.filter(a => {
+            const b = allBranches.find(br => br.id === a.branchId);
+            return !(b?.hide_from_teacher_student);
+         });
+         
+         const filteredCoordinators = coordinators.filter(c => {
+            const b = allBranches.find(br => br.id === c.branchId);
+            return !(b?.hide_from_coordinator);
+         });
+
          const subjectMap: Record<string, { name: string, code: string, type?: 'theory' | 'lab' }> = {};
          allSubjects.forEach(s => subjectMap[s.id] = { name: s.name, code: s.code, type: s.type });
          const facultyMap: Record<string, string> = {};
@@ -2025,8 +2037,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
 
          // Fetch Batches for involved branches
          const branchIds = Array.from(new Set([
-            ...myAssignments.map(a => a.branchId),
-            ...coordinators.map(c => c.branchId)
+            ...filteredAssignments.map(a => a.branchId),
+            ...filteredCoordinators.map(c => c.branchId)
          ]));
          const batchMap: Record<string, string> = {};
          const allBatches: Batch[] = [];
@@ -2037,8 +2049,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          }
 
          setMetaData({ branches: branchMap, lockedBranches: lockedMap, batches: batchMap, subjects: subjectMap, faculty: facultyMap, rawBatches: allBatches });
-         setAssignments(myAssignments);
-         const coordIds = coordinators.map(c => c.branchId);
+         setAssignments(filteredAssignments);
+         const coordIds = filteredCoordinators.map(c => c.branchId);
          setCoordinatorBranchIds(coordIds);
          if (coordIds.length > 0) setCoordinatorBranchId(coordIds[0]); // Default to first coordinator branch
          setLoadingInit(false);
@@ -4058,12 +4070,46 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
             )
          )}
 
-         {activeTab === 'CO-ORDINATOR' && coordinatorBranchId && (
-            <CoordinatorView
-               branchId={coordinatorBranchId}
-               facultyUser={user}
-               metaData={metaData}
-            />
+         {activeTab === 'CO-ORDINATOR' && (
+            coordinatorBranchIds.length === 0 ? (
+               <div className="flex flex-col items-center justify-center p-12 bg-slate-50 border border-slate-200 rounded-3xl text-center space-y-4">
+                  <AlertCircle className="w-16 h-16 text-slate-400 mb-2" />
+                  <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">No Classes Assigned</h3>
+                  <p className="text-sm font-bold text-slate-500 max-w-md mx-auto">
+                     You have not been assigned as a coordinator for any classes by the administrator.
+                  </p>
+               </div>
+            ) : (
+               <div className="space-y-6">
+                  {coordinatorBranchIds.length > 1 && (
+                     <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in zoom-in duration-500 flex flex-col sm:flex-row items-center gap-4">
+                        <span className="text-xs font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">Select Coordinator Class:</span>
+                        <div className="flex flex-wrap gap-2">
+                           {coordinatorBranchIds.map(bid => (
+                              <button
+                                 key={bid}
+                                 onClick={() => setCoordinatorBranchId(bid)}
+                                 className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                                    coordinatorBranchId === bid 
+                                    ? 'bg-indigo-600 text-white shadow-md' 
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                 }`}
+                              >
+                                 {metaData.branches[bid] || bid}
+                              </button>
+                           ))}
+                        </div>
+                     </div>
+                  )}
+                  {coordinatorBranchId && (
+                     <CoordinatorView
+                        branchId={coordinatorBranchId}
+                        facultyUser={user}
+                        metaData={metaData}
+                     />
+                  )}
+               </div>
+            )
          )}
 
          <ExportProgressModal isOpen={isExporting} progress={exportProgress} status={exportStatus} />

@@ -71,9 +71,19 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         return;
       }
 
-      if (selectedRole === 'STUDENT' && user.role !== 'STUDENT') {
-        throw new Error("This account is not a Student account.");
+      if (selectedRole === 'STUDENT') {
+        if (user.role !== 'STUDENT') {
+          throw new Error("This account is not a Student account.");
+        }
+        if (user.studentData?.branchId) {
+          const branches = await db.getBranches();
+          const branch = branches.find(b => b.id === user.studentData!.branchId);
+          if (branch && branch.hide_from_teacher_student) {
+            throw new Error("Your class is currently hidden by the administrator.");
+          }
+        }
       }
+      
       if (selectedRole === 'FACULTY' && user.role !== 'FACULTY') {
         throw new Error("This account is not a Faculty account.");
       }
@@ -81,10 +91,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       if (selectedRole === 'COORDINATOR') {
         if (user.role !== 'FACULTY') {
           throw new Error("This account is not a Faculty/Coordinator account.");
-        }
-        const coords = await db.getCoordinatorsByFaculty(user.uid);
-        if (!coords || coords.length === 0) {
-          throw new Error("You are not assigned as a Class Coordinator.");
         }
         sessionStorage.setItem('login_intent', 'COORDINATOR');
       } else {

@@ -15,6 +15,8 @@ interface IDataService {
   updateBranchName: (id: string, name: string) => Promise<void>;
   deleteBranch: (id: string) => Promise<void>;
   updateBranchViewOnly: (branchId: string, viewOnly: boolean) => Promise<void>;
+  updateBranchHideTeacherStudent: (branchId: string, hidden: boolean) => Promise<void>;
+  updateBranchHideCoordinator: (branchId: string, hidden: boolean) => Promise<void>;
 
   getBatches: (branchId?: string) => Promise<Batch[]>;
   addBatch: (name: string, branchId: string) => Promise<void>;
@@ -309,6 +311,16 @@ class SupabaseService implements IDataService {
   }
   async updateBranchViewOnly(branchId: string, viewOnly: boolean): Promise<void> {
     const { error } = await supabase.from('branches').update({ view_only: viewOnly }).eq('id', branchId);
+    if (error) throw error;
+    this._invalidate('meta_branches');
+  }
+  async updateBranchHideTeacherStudent(branchId: string, hidden: boolean): Promise<void> {
+    const { error } = await supabase.from('branches').update({ hide_from_teacher_student: hidden }).eq('id', branchId);
+    if (error) throw error;
+    this._invalidate('meta_branches');
+  }
+  async updateBranchHideCoordinator(branchId: string, hidden: boolean): Promise<void> {
+    const { error } = await supabase.from('branches').update({ hide_from_coordinator: hidden }).eq('id', branchId);
     if (error) throw error;
     this._invalidate('meta_branches');
   }
@@ -1496,6 +1508,18 @@ class MockService implements IDataService {
     const b = this.load('ams_branches', SEED_BRANCHES);
     const item = b.find((x: any) => x.id === branchId);
     if (item) item.view_only = viewOnly;
+    this.save('ams_branches', b);
+  }
+  async updateBranchHideTeacherStudent(branchId: string, hidden: boolean) {
+    const b = this.load('ams_branches', SEED_BRANCHES);
+    const item = b.find((x: any) => x.id === branchId);
+    if (item) item.hide_from_teacher_student = hidden;
+    this.save('ams_branches', b);
+  }
+  async updateBranchHideCoordinator(branchId: string, hidden: boolean) {
+    const b = this.load('ams_branches', SEED_BRANCHES);
+    const item = b.find((x: any) => x.id === branchId);
+    if (item) item.hide_from_coordinator = hidden;
     this.save('ams_branches', b);
   }
   async deleteBranch(id: string) {

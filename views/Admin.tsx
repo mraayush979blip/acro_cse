@@ -1008,11 +1008,23 @@ const StudentManagement: React.FC = () => {
                 <div className="flex items-center flex-wrap gap-2">
                   <span className={`font-bold ${level === 'branches' && item.view_only ? 'text-amber-900' : 'text-slate-800'}`}>{item.name}</span>
                   {level === 'branches' && (
-                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider ${
-                      item.view_only ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                    }`}>
-                      View Mode: {item.view_only ? 'Enabled' : 'Disabled'}
-                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider ${
+                        item.view_only ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                      }`}>
+                        View Mode: {item.view_only ? 'Enabled' : 'Disabled'}
+                      </span>
+                      {item.hide_from_teacher_student && (
+                        <span className="text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200">
+                          Hidden from Teachers/Students
+                        </span>
+                      )}
+                      {item.hide_from_coordinator && (
+                        <span className="text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider bg-purple-100 text-purple-700 border border-purple-200">
+                          Hidden from Coordinator
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
                 
@@ -1057,6 +1069,34 @@ const StudentManagement: React.FC = () => {
                           >
                             {item.view_only ? <EyeOff className="h-4 w-4 text-slate-400" /> : <Eye className="h-4 w-4 text-amber-500" />}
                             {item.view_only ? 'Disable View Mode' : 'Enable View Mode'}
+                          </button>
+                          
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              setOpenDropdownId(null);
+                              if (confirm(`Are you sure you want to ${item.hide_from_teacher_student ? 'show' : 'hide'} ${item.name} for Teachers and Students?`)) {
+                                db.updateBranchHideTeacherStudent(item.id, !item.hide_from_teacher_student).then(loadInitialData).catch(err => alert(err.message));
+                              }
+                            }} 
+                            className="w-full text-left px-4 py-3.5 text-sm hover:bg-slate-50 flex items-center gap-3 text-slate-700 font-medium border-t border-slate-100"
+                          >
+                            {item.hide_from_teacher_student ? <Eye className="h-4 w-4 text-emerald-500" /> : <EyeOff className="h-4 w-4 text-rose-500" />}
+                            {item.hide_from_teacher_student ? 'Show to Teachers/Students' : 'Hide from Teachers/Students'}
+                          </button>
+                          
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation(); 
+                              setOpenDropdownId(null);
+                              if (confirm(`Are you sure you want to ${item.hide_from_coordinator ? 'show' : 'hide'} ${item.name} for the Coordinator?`)) {
+                                db.updateBranchHideCoordinator(item.id, !item.hide_from_coordinator).then(loadInitialData).catch(err => alert(err.message));
+                              }
+                            }} 
+                            className="w-full text-left px-4 py-3.5 text-sm hover:bg-slate-50 flex items-center gap-3 text-slate-700 font-medium border-t border-slate-100"
+                          >
+                            {item.hide_from_coordinator ? <Eye className="h-4 w-4 text-emerald-500" /> : <EyeOff className="h-4 w-4 text-purple-500" />}
+                            {item.hide_from_coordinator ? 'Show to Coordinator' : 'Hide from Coordinator'}
                           </button>
                           
                           <button 
