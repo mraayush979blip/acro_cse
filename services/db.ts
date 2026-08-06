@@ -1168,6 +1168,7 @@ class SupabaseService implements IDataService {
 
   async saveMarks(marks: any[]): Promise<void> {
     const rows = marks.map(m => ({
+      id: m.id || `mark_${m.studentId}_${m.subjectId}_${m.midSemType}`.replace(/[^a-z0-9_]/gi, '_'),
       student_id: m.studentId,
       subject_id: m.subjectId,
       faculty_id: m.facultyId,
