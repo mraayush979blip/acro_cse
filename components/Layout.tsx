@@ -452,7 +452,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onOpen
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-slate-800">{title}</h2>
             <span className="bg-indigo-100/80 text-indigo-700 text-xs font-black uppercase tracking-wider px-2.5 py-1 rounded-md border border-indigo-200/50 shadow-sm">
-              {currentYearMode === '2nd' ? '2nd Year' : '3rd Year'}
+              {currentYearMode === '2nd' ? '2nd Year' : currentYearMode === '4th' ? '4th Year' : '3rd Year'}
             </span>
           </div>
           
