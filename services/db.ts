@@ -359,8 +359,7 @@ class SupabaseService implements IDataService {
       roll_no: data.studentData?.rollNo,
       mobile_no: mobileNo,
       branch_id: data.studentData?.branchId,
-      batch_id: data.studentData?.batchId,
-      password: mobileNo
+      batch_id: data.studentData?.batchId
     }).eq('id', uid);
 
     if (error) throw error;
@@ -582,8 +581,7 @@ class SupabaseService implements IDataService {
       email: data.email,
       display_name: data.displayName,
       role: UserRole.FACULTY,
-      roll_no: data.facultyData?.serialNo,
-      password: pass
+      roll_no: data.facultyData?.serialNo
     }]);
     if (profError) throw profError;
     this._invalidate('meta_faculty');
