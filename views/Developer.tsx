@@ -233,11 +233,11 @@ export const DeveloperDashboard: React.FC<{ user: User }> = ({ user }) => {
                                     <SecurityItem label="Origin Shield" status="STRICT" desc="URL verification" />
                                 </div>
                                 <div className="mt-6 p-4 bg-slate-950 rounded-xl border border-slate-800 shadow-inner">
-                                    <div className="flex justify-between items-end mb-2">
+                                    <div className="fletx justify-between items-end mb-2">
                                         <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Global Memory</p>
                                         <p className="text-[9px] font-bold text-slate-500">{storage.percent}% Used</p>
                                     </div>
-                                    <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-2 wa-full bg-slate-800 rounded-full overflow-hidden">
                                         <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${storage.percent}%` }}></div>
                                     </div>
                                     <p className="text-[10px] text-slate-400 mt-2 font-mono">{storage.consumed} / {storage.total}</p>

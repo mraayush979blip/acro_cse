@@ -138,18 +138,100 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Disable RLS for ease of use (Since the app doesn't seem to heavily rely on strict RLS for normal operation, or if it does, it can be added later)
--- Note: It is recommended to enable RLS and set appropriate policies for production.
-ALTER TABLE public.whitelist DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.branches DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.batches DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.subjects DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.assignments DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.coordinators DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.attendance DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.marks DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_settings DISABLE ROW LEVEL SECURITY;
+-- Enable RLS to clear security warnings
+ALTER TABLE public.whitelist ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.batches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subjects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.coordinators ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.marks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deleted_attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- If RLS was explicitly used in original setup, please configure policies as required.
+-- Drop any existing permissive policies to apply strict ones safely
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.whitelist;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.branches;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.batches;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.subjects;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.profiles;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.assignments;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.coordinators;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.attendance;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.marks;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.notifications;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.system_settings;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.deleted_attendance;
+DROP POLICY IF EXISTS "Allow authenticated users full access" ON public.audit_logs;
+
+-- 1. Read-Only Reference Tables
+CREATE POLICY "All authenticated users can read whitelist" ON public.whitelist FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Only Admins and Developers can modify whitelist" ON public.whitelist FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'DEVELOPER')));
+
+CREATE POLICY "All authenticated users can read branches" ON public.branches FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Only Admins and Developers can modify branches" ON public.branches FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'DEVELOPER')));
+
+CREATE POLICY "All authenticated users can read batches" ON public.batches FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Only Admins and Developers can modify batches" ON public.batches FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'DEVELOPER')));
+
+CREATE POLICY "All authenticated users can read subjects" ON public.subjects FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Only Admins and Developers can modify subjects" ON public.subjects FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'DEVELOPER')));
+
+-- 2. Profiles Table
+CREATE POLICY "All authenticated users can read profiles" ON public.profiles FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
+CREATE POLICY "Admins can update all profiles" ON public.profiles FOR UPDATE TO authenticated USING ( (auth.jwt() ->> 'email') IN (SELECT email FROM public.whitelist WHERE role IN ('ADMIN', 'DEVELOPER')) );
+CREATE POLICY "Only Admins can insert profiles" ON public.profiles FOR INSERT TO authenticated WITH CHECK ( (auth.jwt() ->> 'email') IN (SELECT email FROM public.whitelist WHERE role IN ('ADMIN', 'DEVELOPER')) );
+CREATE POLICY "Only Admins can delete profiles" ON public.profiles FOR DELETE TO authenticated USING ( (auth.jwt() ->> 'email') IN (SELECT email FROM public.whitelist WHERE role IN ('ADMIN', 'DEVELOPER')) );
+
+-- 3. Sensitive Data Tables
+CREATE POLICY "Students read own attendance, others read all" ON public.attendance FOR SELECT TO authenticated USING (student_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('FACULTY', 'COORDINATOR', 'ADMIN', 'DEVELOPER')));
+CREATE POLICY "Only Staff can modify attendance" ON public.attendance FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('FACULTY', 'COORDINATOR', 'ADMIN', 'DEVELOPER')));
+
+CREATE POLICY "Students read own marks, others read all" ON public.marks FOR SELECT TO authenticated USING (student_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('FACULTY', 'COORDINATOR', 'ADMIN', 'DEVELOPER')));
+CREATE POLICY "Only Staff can modify marks" ON public.marks FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('FACULTY', 'COORDINATOR', 'ADMIN', 'DEVELOPER')));
+
+-- 4. Internal/Admin Tables
+CREATE POLICY "Staff read/write assignments" ON public.assignments FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('FACULTY', 'COORDINATOR', 'ADMIN', 'DEVELOPER')));
+CREATE POLICY "Staff read/write coordinators" ON public.coordinators FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('FACULTY', 'COORDINATOR', 'ADMIN', 'DEVELOPER')));
+CREATE POLICY "Users read/write own notifications, admins read/write all" ON public.notifications FOR ALL TO authenticated USING (to_user_id = auth.uid() OR from_user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('FACULTY', 'COORDINATOR', 'ADMIN', 'DEVELOPER')));
+CREATE POLICY "All users can read system_settings" ON public.system_settings FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can modify system_settings" ON public.system_settings FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'DEVELOPER')));
+CREATE POLICY "Staff read/write deleted_attendance" ON public.deleted_attendance FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('FACULTY', 'COORDINATOR', 'ADMIN', 'DEVELOPER')));
+CREATE POLICY "Admins read/write audit_logs" ON public.audit_logs FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'DEVELOPER')));
+
+-- Fix Performance Warnings (Create Indexes for Foreign Keys)
+CREATE INDEX IF NOT EXISTS idx_batches_branch_id ON public.batches(branch_id);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_branch_id ON public.profiles(branch_id);
+
+CREATE INDEX IF NOT EXISTS idx_assignments_faculty_id ON public.assignments(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_branch_id ON public.assignments(branch_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_subject_id ON public.assignments(subject_id);
+
+CREATE INDEX IF NOT EXISTS idx_coordinators_faculty_id ON public.coordinators(faculty_id);
+CREATE INDEX IF NOT EXISTS idx_coordinators_branch_id ON public.coordinators(branch_id);
+
+CREATE INDEX IF NOT EXISTS idx_attendance_student_id ON public.attendance(student_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_subject_id ON public.attendance(subject_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_branch_id ON public.attendance(branch_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_marked_by ON public.attendance(marked_by);
+
+CREATE INDEX IF NOT EXISTS idx_marks_student_id ON public.marks(student_id);
+CREATE INDEX IF NOT EXISTS idx_marks_subject_id ON public.marks(subject_id);
+CREATE INDEX IF NOT EXISTS idx_marks_faculty_id ON public.marks(faculty_id);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_to_user_id ON public.notifications(to_user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_from_user_id ON public.notifications(from_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_deleted_attendance_student_id ON public.deleted_attendance(student_id);
+CREATE INDEX IF NOT EXISTS idx_deleted_attendance_subject_id ON public.deleted_attendance(subject_id);
+CREATE INDEX IF NOT EXISTS idx_deleted_attendance_branch_id ON public.deleted_attendance(branch_id);
+CREATE INDEX IF NOT EXISTS idx_deleted_attendance_marked_by ON public.deleted_attendance(marked_by);
+CREATE INDEX IF NOT EXISTS idx_deleted_attendance_deleted_by ON public.deleted_attendance(deleted_by);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_performed_by ON public.audit_logs(performed_by);
