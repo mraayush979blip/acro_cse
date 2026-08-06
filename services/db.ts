@@ -277,17 +277,11 @@ class SupabaseService implements IDataService {
   }
 
   async changePassword(currentPass: string, newPass: string): Promise<void> {
-    // Supabase doesn't require current password to update (if session is active)
+    // Supabase handles passwords securely via auth.updateUser — no need to store in profiles
     const { error } = await supabase.auth.updateUser({
       password: newPass
     });
     if (error) throw error;
-
-    // Also update profiles table if we store it there (redundant but matches previous implementation)
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from('profiles').update({ password: newPass }).eq('id', user.id);
-    }
   }
 
   // --- Hierarchy ---
@@ -450,8 +444,7 @@ class SupabaseService implements IDataService {
       batch_id: data.studentData?.batchId,
       enrollment_id: enrollmentId,
       roll_no: data.studentData?.rollNo,
-      mobile_no: data.studentData?.mobileNo,
-      password
+      mobile_no: data.studentData?.mobileNo
     }]);
 
     if (profError) throw profError;
