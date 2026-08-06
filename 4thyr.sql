@@ -90,7 +90,8 @@ CREATE TABLE IF NOT EXISTS public.marks (
     marks_obtained REAL NOT NULL,
     max_marks REAL NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE (student_id, subject_id, mid_sem_type)
 );
 
 -- 10. Notifications Table
@@ -113,6 +114,10 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
 
 -- Insert default system settings
 INSERT INTO public.system_settings (id, student_login_enabled) VALUES ('default', true) ON CONFLICT DO NOTHING;
+
+-- Insert the mandatory 'sub_extra' subject used by the coordinator extra attendance feature
+-- This is a hardcoded ID used throughout the codebase, it MUST exist in the subjects table
+INSERT INTO public.subjects (id, name, code, type) VALUES ('sub_extra', 'Extra Lectures', 'EXTRA', 'theory') ON CONFLICT DO NOTHING;
 
 -- 12. Deleted Attendance (Recycle Bin)
 CREATE TABLE IF NOT EXISTS public.deleted_attendance (
