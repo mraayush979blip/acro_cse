@@ -1181,17 +1181,13 @@ class SupabaseService implements IDataService {
   }
 
   async getSystemSettings(): Promise<SystemSettings> {
-    const { data, error } = await supabase.from('system_settings').select('*');
+    const { data, error } = await supabase.from('system_settings').select('*').eq('id', 'default').single();
     if (error) throw error;
-    const settings: SystemSettings = { studentLoginEnabled: true };
-    data?.forEach(row => {
-      if (row.key === 'student_login_enabled') settings.studentLoginEnabled = row.value === true || row.value === 'true';
-    });
-    return settings;
+    return { studentLoginEnabled: data?.student_login_enabled ?? true };
   }
 
   async updateSystemSettings(settings: SystemSettings): Promise<void> {
-    const { error } = await supabase.from('system_settings').upsert({ key: 'student_login_enabled', value: settings.studentLoginEnabled });
+    const { error } = await supabase.from('system_settings').upsert({ id: 'default', student_login_enabled: settings.studentLoginEnabled });
     if (error) throw error;
   }
 
@@ -1232,7 +1228,7 @@ class SupabaseService implements IDataService {
       const { error } = await supabase.from('subjects').insert(SEED_SUBJECTS);
       if (error) throw error;
     }
-    const { error: ssError } = await supabase.from('system_settings').upsert([{ key: 'student_login_enabled', value: true }]);
+    const { error: ssError } = await supabase.from('system_settings').upsert([{ id: 'default', student_login_enabled: true }]);
     if (ssError) throw ssError;
   }
 

@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS public.whitelist (
 CREATE TABLE IF NOT EXISTS public.branches (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    view_only BOOLEAN DEFAULT false
+    view_only BOOLEAN DEFAULT false,
+    hide_from_teacher_student BOOLEAN DEFAULT false,
+    hide_from_coordinator BOOLEAN DEFAULT false
 );
 
 -- 3. Batches Table
