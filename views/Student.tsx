@@ -80,7 +80,7 @@ export const StudentDashboard: React.FC<StudentProps> = ({ user }) => {
       overallTot += c.tot;
       overallPres += c.pres;
    });
-   const overallPct = overallTot === 0 ? 100 : Math.round((overallPres / overallTot) * 100);
+   const overallPct = overallTot === 0 ? 100 : Math.min(100, Math.round((overallPres / overallTot) * 100));
    const overallIsLow = overallTot > 0 && overallPct < 75;
 
    if (loading) return <div>Loading...</div>;
