@@ -4,7 +4,7 @@ import { db } from '../services/db';
 import { supabase } from '../services/supabase';
 import { Branch, Batch, User, Subject, FacultyAssignment, AttendanceRecord, CoordinatorAssignment, Mark, SystemSettings, MidSemType } from '../types';
 import { Card, Button, Input, Select, Modal, FileUploader, ExportProgressModal } from '../components/UI';
-import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, EyeOff, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings, GripVertical, FileDown, Loader2, Activity, RefreshCw, MoreVertical } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, Users, BookOpen, Database, Key, ArrowLeft, CheckCircle2, XCircle, Trash, Eye, EyeOff, Layers, Edit2, Calendar, Smartphone, Filter, AlertCircle, AlertTriangle, Trophy, Settings, GripVertical, FileDown, Loader2, Activity, RefreshCw, MoreVertical, Archive, Download } from 'lucide-react';
 import { useNavigate, useLocation, Routes, Route, Navigate, useParams } from 'react-router-dom';
 
 const SystemManagement: React.FC = () => {
@@ -209,6 +209,7 @@ export const AdminDashboard: React.FC = () => {
 
   // Determine active tab from path (admin/students or admin/faculty or admin/monitor or admin/reports or admin/system)
   const activeTab = location.pathname.includes('/admin/faculty') ? 'faculty' :
+    location.pathname.includes('/admin/archived') ? 'archived' :
     location.pathname.includes('/admin/monitor') ? 'monitor' :
       location.pathname.includes('/admin/reports') ? 'reports' :
         location.pathname.includes('/admin/system') ? 'system' : 'students';
@@ -229,6 +230,7 @@ export const AdminDashboard: React.FC = () => {
   const tabs = [
     { id: 'students', label: 'Students', icon: Users },
     { id: 'faculty',  label: 'Faculty',  icon: BookOpen },
+    { id: 'archived', label: 'Archived', icon: Archive },
     { id: 'monitor',  label: 'Monitor',  icon: Calendar },
     { id: 'reports',  label: 'Reports',  icon: Layers },
     { id: 'system',   label: 'Settings', icon: Settings },
@@ -245,7 +247,7 @@ export const AdminDashboard: React.FC = () => {
               onClick={() => activeTab !== t.id && navigate(`/admin/${t.id}`)}
               className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === t.id ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
             >
-              {t.id === 'students' ? 'Manage Students' : t.id === 'faculty' ? 'Manage Faculty & Classes' : t.id === 'monitor' ? "Today's Attendance" : t.label}
+              {t.id === 'students' ? 'Manage Students' : t.id === 'faculty' ? 'Manage Faculty & Classes' : t.id === 'monitor' ? "Today's Attendance" : t.id === 'archived' ? 'Archived Classes' : t.label}
             </button>
           ))}
         </div>
@@ -269,12 +271,13 @@ export const AdminDashboard: React.FC = () => {
       {/* Content */}
       {activeTab === 'students' ? <StudentManagement /> :
         activeTab === 'faculty' ? <FacultyManagement /> :
+          activeTab === 'archived' ? <ArchivedClasses /> :
           activeTab === 'monitor' ? <AttendanceMonitor /> :
             activeTab === 'system' ? <SystemManagement /> : <ReportManagement />}
 
       {/* Mobile bottom nav */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-2xl z-40">
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {tabs.map(t => {
             const Icon = t.icon;
             const isActive = activeTab === t.id;
@@ -556,6 +559,342 @@ const AdminStudentDetail: React.FC<{ student: User; onBack: () => void }> = ({ s
     </Card>
   );
 }
+
+const ArchivedClasses: React.FC = () => {
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [batchCounts, setBatchCounts] = useState<Record<string, number>>({});
+  const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [restoring, setRestoring] = useState<string | null>(null);
+
+  // Drill-down state
+  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [students, setStudents] = useState<User[]>([]);
+  const [subLoading, setSubLoading] = useState(false);
+
+  useEffect(() => { loadData(); }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const allBranches = await db.getBranches();
+      const archived = allBranches.filter(b => b.view_only);
+      setBranches(archived);
+
+      const [allBatches, allStudents] = await Promise.all([
+        db.getBatches(),
+        db.getAllStudents()
+      ]);
+
+      const bCounts: Record<string, number> = {};
+      const sCounts: Record<string, number> = {};
+      for (const br of archived) {
+        bCounts[br.id] = allBatches.filter(b => b.branchId === br.id).length;
+        sCounts[br.id] = allStudents.filter(s => s.studentData?.branchId === br.id).length;
+      }
+      setBatchCounts(bCounts);
+      setStudentCounts(sCounts);
+    } catch (err) {
+      console.error('Failed to load archived classes', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectBranch = async (branch: Branch) => {
+    setSelectedBranch(branch);
+    setSelectedBatch(null);
+    setSubLoading(true);
+    try {
+      const bts = await db.getBatches(branch.id);
+      setBatches(bts);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
+  const handleSelectBatch = async (batch: Batch) => {
+    if (!selectedBranch) return;
+    setSelectedBatch(batch);
+    setSubLoading(true);
+    try {
+      const stus = await db.getStudents(selectedBranch.id, batch.id);
+      setStudents(stus);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    if (selectedBatch) {
+      setSelectedBatch(null);
+      setStudents([]);
+    } else if (selectedBranch) {
+      setSelectedBranch(null);
+      setBatches([]);
+    }
+  };
+
+  const handleRestore = async (branchId: string, branchName: string) => {
+    if (!window.confirm(`Are you sure you want to restore "${branchName}" back to active classes?\n\nThis will disable view mode and the class will appear in Students, Faculty, Monitor, and Reports again.`)) return;
+    setRestoring(branchId);
+    try {
+      await db.updateBranchViewOnly(branchId, false);
+      setSelectedBranch(null);
+      setSelectedBatch(null);
+      await loadData();
+    } catch (err: any) {
+      alert('Failed to restore: ' + err.message);
+    } finally {
+      setRestoring(null);
+    }
+  };
+
+  const handleDeleteComplete = async (branchId: string, branchName: string) => {
+    if (!window.confirm(`⚠️ DANGER: Are you absolutely sure you want to permanently delete "${branchName}"?\n\nThis will wipe all students, their login accounts, faculty allocations, and attendance. THIS CANNOT BE UNDONE.`)) return;
+    if (window.prompt(`Type DELETE to confirm permanent deletion of "${branchName}":`) !== 'DELETE') return;
+    
+    setSubLoading(true);
+    try {
+      await db.deleteCompleteBranch(branchId);
+      setSelectedBranch(null);
+      setSelectedBatch(null);
+      await loadData();
+    } catch (err: any) {
+      alert('Failed to delete: ' + err.message);
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
+  const handleExportStudents = () => {
+    if (students.length === 0) { alert('No students to export.'); return; }
+    const header = 'Enrollment,Sr No,Name,Mobile';
+    const rows = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => {
+      const enroll = s.studentData?.enrollmentId || '';
+      const roll = s.studentData?.rollNo || '';
+      const name = s.displayName || '';
+      const mobile = s.studentData?.mobileNo || '';
+      return `${enroll},${roll},${name},${mobile}`;
+    });
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const branchName = selectedBranch?.name?.replace(/\s+/g, '_') || 'class';
+    const batchName = selectedBatch?.name?.replace(/\s+/g, '_') || 'students';
+    link.download = `${branchName}_${batchName}_export.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <div className="flex items-center justify-center py-12 gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
+          <span className="text-sm font-bold text-slate-500">Loading archived classes...</span>
+        </div>
+      </Card>
+    );
+  }
+
+  if (branches.length === 0) {
+    return (
+      <Card>
+        <div className="text-center py-16 space-y-3">
+          <Archive className="h-12 w-12 text-slate-300 mx-auto" />
+          <h3 className="text-lg font-bold text-slate-700">No Archived Classes</h3>
+          <p className="text-sm text-slate-500 max-w-md mx-auto">
+            Classes with View Mode enabled will appear here. They are hidden from Students, Faculty, Monitor, and Reports to avoid confusion with active classes.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header + Breadcrumb */}
+      <div className="flex items-center gap-3 mb-2">
+        <div className="p-2 bg-amber-50 rounded-lg">
+          <Archive className="h-5 w-5 text-amber-600" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center text-sm text-slate-500 gap-1 flex-wrap">
+            <span className={`cursor-pointer hover:text-indigo-600 ${!selectedBranch ? 'font-bold text-indigo-600' : ''}`} onClick={() => { setSelectedBranch(null); setSelectedBatch(null); }}>
+              Archived Classes
+            </span>
+            {selectedBranch && (
+              <>
+                <ChevronRight className="h-4 w-4" />
+                <span className={`cursor-pointer hover:text-indigo-600 ${selectedBranch && !selectedBatch ? 'font-bold text-indigo-600' : ''}`} onClick={() => { setSelectedBatch(null); }}>
+                  {selectedBranch.name}
+                </span>
+              </>
+            )}
+            {selectedBatch && (
+              <>
+                <ChevronRight className="h-4 w-4" />
+                <span className="font-bold text-indigo-600">{selectedBatch.name}</span>
+              </>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {!selectedBranch ? 'Tap a class to view its batches and students.' : !selectedBatch ? 'Tap a batch to view students.' : `${students.length} students in this batch`}
+          </p>
+        </div>
+        {(selectedBranch || selectedBatch) && (
+          <button onClick={handleBack} className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 transition-colors">
+            <ArrowLeft className="h-3.5 w-3.5" /> Back
+          </button>
+        )}
+      </div>
+
+      {subLoading ? (
+        <Card>
+          <div className="flex items-center justify-center py-12 gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
+            <span className="text-sm font-bold text-slate-500">Loading...</span>
+          </div>
+        </Card>
+      ) : !selectedBranch ? (
+        /* ===== Level 1: Archived Classes Grid ===== */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {branches.map(br => (
+            <div key={br.id} onClick={() => handleSelectBranch(br)} className="group border border-amber-200 bg-amber-50/30 p-4 rounded-xl cursor-pointer hover:shadow-lg hover:border-amber-400 flex justify-between items-center transition-all">
+              <div className="flex items-center flex-wrap gap-2">
+                <span className="font-bold text-amber-900">{br.name}</span>
+                <span className="text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200">
+                  View Mode
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right hidden md:block">
+                  <div className="text-[10px] font-bold text-slate-500">{batchCounts[br.id] || 0} batches · {studentCounts[br.id] || 0} students</div>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleRestore(br.id, br.name); }}
+                  disabled={restoring === br.id}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-100 transition-all disabled:opacity-50"
+                >
+                  {restoring === br.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                  Restore
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteComplete(br.id, br.name); }}
+                  className="flex items-center justify-center p-1.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-all"
+                  title="Permanently Delete Class"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <ChevronRight className="h-5 w-5 text-amber-400 group-hover:text-amber-600 transition-colors" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : !selectedBatch ? (
+        /* ===== Level 2: Batches for Selected Class ===== */
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-bold text-slate-800">Batches in {selectedBranch.name}</h4>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => { e.stopPropagation(); handleRestore(selectedBranch.id, selectedBranch.name); }}
+                disabled={restoring === selectedBranch.id}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-all disabled:opacity-50"
+              >
+                {restoring === selectedBranch.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                Restore to Active
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteComplete(selectedBranch.id, selectedBranch.name); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold hover:bg-rose-100 transition-all"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete Class
+              </button>
+            </div>
+          </div>
+          {batches.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 text-sm">No batches found in this class.</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {batches.map(bt => (
+                <div key={bt.id} onClick={() => handleSelectBatch(bt)} className="group border border-slate-200 p-4 rounded-xl cursor-pointer hover:shadow-lg hover:border-indigo-400 flex justify-between items-center transition-all bg-white">
+                  <span className="font-bold text-slate-800">{bt.name}</span>
+                  <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      ) : (
+        /* ===== Level 3: Students in Selected Batch ===== */
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-bold text-slate-800">Students in {selectedBatch.name}</h4>
+            <button
+              onClick={handleExportStudents}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-all"
+            >
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
+          </div>
+          {students.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 text-sm">No students found in this batch.</div>
+          ) : (
+            <>
+              {/* Mobile card list */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {[...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => (
+                  <div key={s.uid} className="flex items-center justify-between py-3 px-1 gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-900 text-sm truncate">{s.displayName}</div>
+                      <div className="text-[10px] font-mono text-slate-600 uppercase">{s.studentData?.enrollmentId} {s.studentData?.rollNo ? `· Sr No: ${s.studentData.rollNo}` : ''}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{s.studentData?.mobileNo}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop table */}
+              <table className="hidden md:table w-full text-left text-sm">
+                <thead className="bg-slate-50 border-b">
+                  <tr>
+                    <th className="p-2 text-slate-900">Enrollment</th>
+                    <th className="p-2 text-slate-900">Sr No</th>
+                    <th className="p-2 text-slate-900">Name</th>
+                    <th className="p-2 text-slate-900">Mobile No</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => (
+                    <tr key={s.uid} className="border-b">
+                      <td className="p-2 font-mono text-slate-900">{s.studentData?.enrollmentId}</td>
+                      <td className="p-2 font-mono text-slate-900">{s.studentData?.rollNo}</td>
+                      <td className="p-2 text-slate-900">{s.displayName}</td>
+                      <td className="p-2 text-slate-900 font-mono">{s.studentData?.mobileNo}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-3 text-right text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {students.length} students total
+              </div>
+            </>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+};
 
 const StudentManagement: React.FC = () => {
   const { branchId, batchId, studentId } = useParams();
@@ -886,7 +1225,7 @@ const StudentManagement: React.FC = () => {
   );
 
   let listItems: any[] = [];
-  if (level === 'branches') listItems = branches;
+  if (level === 'branches') listItems = branches.filter(b => !b.view_only);
   else if (level === 'batches') listItems = batches;
 
   return (
@@ -1132,6 +1471,32 @@ const StudentManagement: React.FC = () => {
             <div className="flex justify-end gap-2">
               <a href="data:text/csv;charset=utf-8,Enrollment,Sr No,Name,Mobile%0A0827CS221234,1,John Doe,9876543210" download="students_template.csv" className="flex items-center gap-1 px-3 py-2 rounded border border-dashed border-slate-300 text-slate-500 text-xs font-bold hover:bg-slate-100 transition-all">📄 Template</a>
               <FileUploader onFileSelect={handleCSVUpload} label="Import CSV" />
+              <button
+                onClick={() => {
+                  if (students.length === 0) { alert('No students to export.'); return; }
+                  const header = 'Enrollment,Sr No,Name,Mobile';
+                  const rows = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true })).map(s => {
+                    const enroll = s.studentData?.enrollmentId || '';
+                    const roll = s.studentData?.rollNo || '';
+                    const name = s.displayName || '';
+                    const mobile = s.studentData?.mobileNo || '';
+                    return `${enroll},${roll},${name},${mobile}`;
+                  });
+                  const csv = [header, ...rows].join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  const branchName = selBranch?.name?.replace(/\s+/g, '_') || 'class';
+                  const batchName = selBatch?.name?.replace(/\s+/g, '_') || 'students';
+                  link.download = `${branchName}_${batchName}_export.csv`;
+                  link.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="flex items-center gap-1 px-3 py-2 rounded border border-dashed border-emerald-400 text-emerald-600 text-xs font-bold hover:bg-emerald-50 transition-all"
+              >
+                <Download className="h-3 w-3" /> Export CSV
+              </button>
               <Button onClick={handleAddStudent} disabled={loading}>{loading ? 'Adding...' : 'Add Student'}</Button>
             </div>
             {importProgress && (
@@ -1627,7 +1992,7 @@ const FacultyManagement: React.FC = () => {
                 </div>
                 <form onSubmit={handleAssign} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
                   <Select label="Faculty" value={assignForm.facultyId} onChange={e => setAssignForm({ ...assignForm, facultyId: e.target.value })} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...faculty.map(f => <option key={f.uid} value={f.uid}>{f.displayName}</option>)]}</Select>
-                  <Select label="Class" value={assignForm.branchId} onChange={e => { setAssignForm({ ...assignForm, branchId: e.target.value, batchId: '' }); loadBatches(e.target.value); }} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
+                  <Select label="Class" value={assignForm.branchId} onChange={e => { setAssignForm({ ...assignForm, branchId: e.target.value, batchId: '' }); loadBatches(e.target.value); }} className="mb-0 bg-white">{[<option key="def" value="">Select</option>, ...branches.filter(b => !b.view_only).map(b => <option key={b.id} value={b.id}>{b.name}</option>)]}</Select>
                   <Select label="Subject" value={assignForm.subjectId} onChange={e => {
                     const subj = subjects.find(s => s.id === e.target.value);
                     setAssignForm({ ...assignForm, subjectId: e.target.value, batchId: (subj?.type !== 'lab') ? 'ALL' : '' });
@@ -1649,14 +2014,14 @@ const FacultyManagement: React.FC = () => {
                     className="text-xs border rounded p-1 bg-white text-slate-700"
                   >
                     <option value="">All Classes</option>
-                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    {branches.filter(b => !b.view_only).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
               </div>
 
               {/* Mobile assignment cards */}
               <div className="md:hidden divide-y divide-slate-100">
-                {assignments.filter(a => !allocFilterBranchId || a.branchId === allocFilterBranchId).map(a => {
+                {assignments.filter(a => { const br = branches.find(b => b.id === a.branchId); if (br?.view_only) return false; return !allocFilterBranchId || a.branchId === allocFilterBranchId; }).map(a => {
                   const fac = faculty.find(f => f.uid === a.facultyId);
                   const sub = subjects.find(s => s.id === a.subjectId);
                   const br = branches.find(b => b.id === a.branchId)?.name;
@@ -1677,7 +2042,7 @@ const FacultyManagement: React.FC = () => {
               </div>
               {/* Desktop assignment table */}
               <table className="hidden md:table w-full text-sm text-left"><thead className="bg-slate-50 border-b"><tr><th className="p-2 text-slate-900">Faculty</th><th className="p-2 text-slate-900">Subject</th><th className="p-2 text-slate-900">Context</th><th className="p-2 text-right text-slate-900">Action</th></tr></thead>
-                <tbody>{assignments.filter(a => !allocFilterBranchId || a.branchId === allocFilterBranchId).map(a => {
+                <tbody>{assignments.filter(a => { const br = branches.find(b => b.id === a.branchId); if (br?.view_only) return false; return !allocFilterBranchId || a.branchId === allocFilterBranchId; }).map(a => {
                   const fac = faculty.find(f => f.uid === a.facultyId);
                   const sub = subjects.find(s => s.id === a.subjectId);
                   const subDisplayName = sub ? `${sub.name} (${sub.code})` : 'Unknown Subject';
@@ -1697,7 +2062,7 @@ const FacultyManagement: React.FC = () => {
                   </Select>
                   <Select label="Class" value={coordForm.branchId} onChange={e => setCoordForm({ ...coordForm, branchId: e.target.value })} className="mb-0 bg-white">
                     <option value="">Select Class</option>
-                    {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    {branches.filter(b => !b.view_only).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </Select>
                   <Button onClick={async () => {
                     if (coordForm.facultyId && coordForm.branchId) {
@@ -1717,7 +2082,7 @@ const FacultyManagement: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {coordinators.map(c => (
+                  {coordinators.filter(c => { const br = branches.find(b => b.id === c.branchId); return !br?.view_only; }).map(c => (
                     <tr key={c.id} className="border-b">
                       <td className="p-2 text-slate-900">{faculty.find(f => f.uid === c.facultyId)?.displayName}</td>
                       <td className="p-2 text-slate-900">{branches.find(b => b.id === c.branchId)?.name}</td>
@@ -1891,6 +2256,8 @@ function AttendanceMonitor() {
   }, [students, attendance]);
 
   const filteredStats = stats.filter(s => {
+    const studentBranch = branches.find(b => b.id === s.studentData?.branchId);
+    if (studentBranch?.view_only) return false;
     const matchBranch = branchFilter === 'ALL' || s.studentData?.branchId === branchFilter;
     const matchStatus = !showIncompleteOnly || s.isIncomplete;
     return matchBranch && matchStatus;
@@ -1927,7 +2294,7 @@ function AttendanceMonitor() {
 
           <Select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className="mb-0 text-xs font-bold bg-white">
             <option value="ALL">All Classes</option>
-            {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {branches.filter(b => !b.view_only).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </Select>
           <button onClick={() => setShowIncompleteOnly(!showIncompleteOnly)} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all border ${showIncompleteOnly ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
             {showIncompleteOnly ? <AlertTriangle className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
@@ -2009,6 +2376,7 @@ const ReportManagement: React.FC = () => {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
+  const [reportViewMode, setReportViewMode] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
   const [exportRange, setExportRange] = useState<'TILL_TODAY' | 'CUSTOM'>('TILL_TODAY');
   const [exportSubjectType, setExportSubjectType] = useState<'ALL' | 'THEORY' | 'LAB'>('ALL');
   const [exportFormat, setExportFormat] = useState<'DETAILED' | 'COMPATIBLE'>('DETAILED');
@@ -2065,10 +2433,11 @@ const ReportManagement: React.FC = () => {
     setStatus('Initializing admin report...');
 
     try {
-      await new Promise(r => setTimeout(r, 600));
+      // Small delays just to let UI render the progress steps, vastly reduced for speed
+      await new Promise(r => setTimeout(r, 10));
       setProgress(10);
       setStatus('Filtering database records...');
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 10));
 
       const exportStart = exportRange === 'CUSTOM' ? exportStartDate : '';
       const exportEnd = exportRange === 'CUSTOM' ? exportEndDate : '';
@@ -2086,7 +2455,7 @@ const ReportManagement: React.FC = () => {
 
       setProgress(30);
       setStatus('Compiling subject headers...');
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 10));
 
       const branchName = branches.find(b => b.id === selectedBranchId)?.name || 'Branch';
 
@@ -2132,7 +2501,7 @@ const ReportManagement: React.FC = () => {
 
       setProgress(50);
       setStatus('Calculating class statistics...');
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 10));
 
       const allBranchStudents = [...students].sort((a, b) => (a.studentData?.rollNo || '').localeCompare(b.studentData?.rollNo || '', undefined, { numeric: true }));
 
@@ -2190,7 +2559,7 @@ const ReportManagement: React.FC = () => {
 
       setProgress(70);
       setStatus('Generating batch data...');
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 10));
 
       Array.from(batchesMap.entries()).forEach(([batchId, batchStudents]) => {
         const batchNameStr = metaBatches[batchId] || batchId;
@@ -2245,7 +2614,7 @@ const ReportManagement: React.FC = () => {
 
       setProgress(85);
       setStatus('Applying Excel styling...');
-      await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 10));
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.aoa_to_sheet(excelRows);
@@ -2344,7 +2713,7 @@ const ReportManagement: React.FC = () => {
 
       setProgress(95);
       setStatus('Finalizing file...');
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 10));
 
       XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
       XLSX.writeFile(wb, `${branchName}_Admin_Summary.xlsx`);
@@ -2422,9 +2791,22 @@ const ReportManagement: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Configuration Step 1: Branch */}
               <div className="space-y-4">
-                <label className="text-xs font-black text-slate-400 uppercase tracking-widest">1. Select Class</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest">1. Select Class</label>
+                  <select
+                    value={reportViewMode}
+                    onChange={(e) => {
+                      setReportViewMode(e.target.value as any);
+                      setSelectedBranchId('');
+                    }}
+                    className="text-xs font-bold text-slate-600 bg-slate-100 border-none rounded-lg px-2 py-1 outline-none"
+                  >
+                    <option value="ACTIVE">Active Classes</option>
+                    <option value="ARCHIVED">Archived Classes</option>
+                  </select>
+                </div>
                 <div className="grid grid-cols-1 gap-2">
-                  {branches.map(b => (
+                  {branches.filter(b => reportViewMode === 'ACTIVE' ? !b.view_only : b.view_only).map(b => (
                     <button
                       key={b.id}
                       onClick={() => handleBranchSelect(b.id)}

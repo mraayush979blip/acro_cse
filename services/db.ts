@@ -14,6 +14,7 @@ interface IDataService {
   addBranch: (name: string) => Promise<void>;
   updateBranchName: (id: string, name: string) => Promise<void>;
   deleteBranch: (id: string) => Promise<void>;
+  deleteCompleteBranch: (id: string) => Promise<void>;
   updateBranchViewOnly: (branchId: string, viewOnly: boolean) => Promise<void>;
   updateBranchHideTeacherStudent: (branchId: string, hidden: boolean) => Promise<void>;
   updateBranchHideCoordinator: (branchId: string, hidden: boolean) => Promise<void>;
@@ -323,6 +324,30 @@ class SupabaseService implements IDataService {
     const { error } = await supabase.from('branches').delete().eq('id', id);
     if (error) throw error;
     this._invalidate('meta_branches');
+  }
+
+  async deleteCompleteBranch(branchId: string): Promise<void> {
+    // 1. Fetch all students in this branch
+    const { data: students } = await supabase.from('profiles').select('id').eq('role', 'student').eq('student_data->>branchId', branchId);
+    
+    // 2. Delete all students (this deletes auth user and profile via RPC)
+    if (students) {
+      for (const student of students) {
+        await this.deleteUser(student.id);
+      }
+    }
+
+    // 3. Delete all assignments (allocations)
+    await supabase.from('assignments').delete().eq('branch_id', branchId);
+
+    // 4. Delete coordinators
+    await supabase.from('coordinators').delete().eq('branch_id', branchId);
+
+    // 5. Delete batches
+    await supabase.from('batches').delete().eq('branch_id', branchId);
+
+    // 6. Delete branch itself (which should also cascade delete attendance via DB foreign keys if setup)
+    await this.deleteBranch(branchId);
   }
 
   async getBatches(branchId?: string): Promise<Batch[]> {
@@ -1513,6 +1538,15 @@ class MockService implements IDataService {
   async deleteBranch(id: string) {
     const b = this.load('ams_branches', SEED_BRANCHES);
     this.save('ams_branches', b.filter((x: any) => x.id !== id));
+  }
+
+  async deleteCompleteBranch(branchId: string) {
+    const users = this.load('ams_users', []);
+    const students = users.filter((u: any) => u.role === 'student' && u.studentData?.branchId === branchId);
+    for (const student of students) {
+      await this.deleteUser(student.uid);
+    }
+    await this.deleteBranch(branchId);
   }
 
   async getBatches(branchId?: string) {
