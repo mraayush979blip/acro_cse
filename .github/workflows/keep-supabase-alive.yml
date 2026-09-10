@@ -21,3 +21,9 @@ jobs:
           curl -s -X GET "https://mxbxdtiviuejjwxvqetg.supabase.co/rest/v1/" \
             -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14YnhkdGl2aXVlamp3eHZxZXRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNjM5NjIsImV4cCI6MjA4OTczOTk2Mn0.JvK3K_7JwrkjEwgYLhoYLbFQVevfw-9LU45iUnnhhOE" \
             -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14YnhkdGl2aXVlamp3eHZxZXRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNjM5NjIsImV4cCI6MjA4OTczOTk2Mn0.JvK3K_7JwrkjEwgYLhoYLbFQVevfw-9LU45iUnnhhOE"
+
+      - name: Ping 4th Year Supabase Project
+        run: |
+          curl -s -X GET "https://ghmwyxpmdiafvjagjfqc.supabase.co/rest/v1/" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdobXd5eHBtZGlhZnZqYWdqZnFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYwMjc4NjgsImV4cCI6MjEwMTYwMzg2OH0.uNEo7rMENGMYhIU9WhTxCACRH7-6Usef-PGlFLPFO8A" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdobXd5eHBtZGlhZnZqYWdqZnFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYwMjc4NjgsImV4cCI6MjEwMTYwMzg2OH0.uNEo7rMENGMYhIU9WhTxCACRH7-6Usef-PGlFLPFO8A"

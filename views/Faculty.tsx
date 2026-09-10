@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import XLSX from 'xlsx-js-style';
+import ExcelJS from 'exceljs';
 import { db } from '../services/db';
 import { User, FacultyAssignment, AttendanceRecord, Batch, Subject, Mark, MidSemType } from '../types';
 import { Button, Card, Modal, Input, Select, ExportProgressModal } from '../components/UI';
@@ -398,19 +398,19 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
          await new Promise(r => setTimeout(r, 50));
 
          // Create Workbook
-         const wb = XLSX.utils.book_new();
-         const ws = XLSX.utils.aoa_to_sheet(csvRows);
+         const workbook = new ExcelJS.Workbook();
+         const sheet = workbook.addWorksheet('Attendance Report');
+
+         sheet.addRows(csvRows);
 
          // --- ADVANCED STYLING & FORMATTING ---
          // 1. Merge Main Headers
-         ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: mainHeader.length - 1 } }, // Main Title
-            { s: { r: 1, c: 0 }, e: { r: 1, c: mainHeader.length - 1 } }, // Dept
-            { s: { r: 2, c: 0 }, e: { r: 2, c: mainHeader.length - 1 } }  // Branch
-         ];
+         sheet.mergeCells(1, 1, 1, mainHeader.length); // Main Title
+         sheet.mergeCells(2, 1, 2, mainHeader.length); // Dept
+         sheet.mergeCells(3, 1, 3, mainHeader.length); // Branch
 
          // 2. Auto-adjust column widths
-         const colWidths = mainHeader.map((_, colIndex) => {
+         sheet.columns.forEach((col, colIndex) => {
             let maxLen = 10;
             csvRows.forEach((row, rowIndex) => {
                if (rowIndex < 7) return; // Skip big title merges for width calculation
@@ -420,36 +420,32 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
                   if (len > maxLen) maxLen = len;
                }
             });
-            return { wch: maxLen + 4 };
+            col.width = maxLen + 4;
          });
-         ws['!cols'] = colWidths;
 
          // 3. Frozen Panes
-         ws['!views'] = [{ state: 'frozen', xSplit: 4, ySplit: 14 }];
+         sheet.views = [{ state: 'frozen', xSplit: 4, ySplit: 14 }];
 
          // --- 5. Apply Colors & Styles ---
-         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-         for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-               const addr = XLSX.utils.encode_cell({ r: R, c: C });
-               if (!ws[addr]) continue;
-
-               ws[addr].s = {
-                  font: { name: "Calibri", sz: 10 },
-                  alignment: { vertical: "center", horizontal: "left", wrapText: true },
-                  border: {
-                     top: { style: "thin", color: { rgb: "CBD5E1" } },
-                     bottom: { style: "thin", color: { rgb: "CBD5E1" } },
-                     left: { style: "thin", color: { rgb: "CBD5E1" } },
-                     right: { style: "thin", color: { rgb: "CBD5E1" } }
-                  }
+         sheet.eachRow((row, rowNumber) => {
+            row.eachCell((cell, colNumber) => {
+               cell.font = { name: "Calibri", size: 10 };
+               cell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+               cell.border = {
+                  top: { style: "thin", color: { argb: "FFCBD5E1" } },
+                  bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+                  left: { style: "thin", color: { argb: "FFCBD5E1" } },
+                  right: { style: "thin", color: { argb: "FFCBD5E1" } }
                };
+
+               const R = rowNumber - 1;
+               const C = colNumber - 1;
 
                // Main Headers
                if (R >= 0 && R <= 2) {
-                  ws[addr].s.fill = { fgColor: { rgb: "0F172A" } };
-                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 12 };
-                  ws[addr].s.alignment.horizontal = "center";
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+                  cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 12 };
+                  cell.alignment = { horizontal: "center" };
                }
 
                const rowVal0 = csvRows[R]?.[0]?.toString() || '';
@@ -457,44 +453,42 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
 
                // Batch Title Row
                if (rowVal0.startsWith('>>> BATCH')) {
-                  ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
-                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
-                  ws[addr].s.alignment.horizontal = "center";
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+                  cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 };
+                  cell.alignment = { horizontal: "center" };
                }
 
                // Table Header
                if (rowVal0 === 'Serial No') {
-                  ws[addr].s.fill = { fgColor: { rgb: "334155" } };
-                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
-                  ws[addr].s.alignment.horizontal = "center";
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
+                  cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                  cell.alignment = { horizontal: "center" };
                }
 
                // Totals Row
                if (rowVal1 === 'Total Lectures Held') {
-                  ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
-                  ws[addr].s.font = ws[addr].s.font || {};
-                  ws[addr].s.font.bold = true;
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+                  cell.font = { bold: true };
                }
 
                // Numbers and Percentages
                if (C >= 3 && R > 7) {
-                  ws[addr].s.alignment.horizontal = "right";
-                  const val = ws[addr].v?.toString() || '';
+                  cell.alignment = { horizontal: "right" };
+                  const val = cell.value?.toString() || '';
                   if (val.includes('%')) {
                      const num = parseInt(val);
                      if (num < 75) {
-                        ws[addr].s.font = { color: { rgb: "FF0000" }, bold: true };
+                        cell.font = { color: { argb: 'FFFF0000' }, bold: true };
                      }
                   }
                }
-            }
-         }
+            });
+         });
 
          // Merge batch title rows across the whole table
-         if (!ws['!merges']) ws['!merges'] = [];
          csvRows.forEach((row, R) => {
             if (row[0]?.toString().startsWith('>>> BATCH')) {
-               ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: mainHeader.length - 1 } });
+               sheet.mergeCells(R + 1, 1, R + 1, mainHeader.length);
             }
          });
 
@@ -502,14 +496,8 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
          setStatus('Finalizing file...');
          await new Promise(r => setTimeout(r, 400));
 
-         XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-         
-         // Fix: Use XLSX.write and Blob to avoid 'fs' warning
-         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
-         const buf = new ArrayBuffer(wbout.length);
-         const view = new Uint8Array(buf);
-         for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
-         const blob = new Blob([buf], { type: 'application/octet-stream' });
+         const buffer = await workbook.xlsx.writeBuffer();
+         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
          const url = URL.createObjectURL(blob);
          const link = document.createElement("a");
          link.href = url;
@@ -631,71 +619,64 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
                                  const tableData = data.map(row => Object.values(row));
                                  const finalAOA = [...headerAOA, tableHeaders, ...tableData];
 
-                                 const ws = XLSX.utils.aoa_to_sheet(finalAOA);
-                                 const wb = XLSX.utils.book_new();
-                                 XLSX.utils.book_append_sheet(wb, ws, "MST Marks Summary");
+                                 const workbook = new ExcelJS.Workbook();
+                                 const sheet = workbook.addWorksheet('MST Marks Summary');
+
+                                 sheet.addRows(finalAOA);
 
                                  // Merges for Header
-                                 ws['!merges'] = [
-                                    { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
-                                    { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
-                                    { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
-                                    { s: { r: 3, c: 0 }, e: { r: 3, c: tableHeaders.length - 1 } },
-                                    { s: { r: 4, c: 0 }, e: { r: 4, c: tableHeaders.length - 1 } },
-                                 ];
+                                 sheet.mergeCells(1, 1, 1, tableHeaders.length);
+                                 sheet.mergeCells(2, 1, 2, tableHeaders.length);
+                                 sheet.mergeCells(3, 1, 3, tableHeaders.length);
+                                 sheet.mergeCells(4, 1, 4, tableHeaders.length);
+                                 sheet.mergeCells(5, 1, 5, tableHeaders.length);
 
                                  // Auto-size columns
-                                 const colWidths = tableHeaders.map((_, colIndex) => {
-                                    let maxLen = tableHeaders[colIndex].length;
+                                 sheet.columns.forEach((col, i) => {
+                                    let maxLen = tableHeaders[i]?.length || 10;
                                     tableData.forEach(row => {
-                                       const len = String(row[colIndex] || '').length;
+                                       const len = String(row[i] || '').length;
                                        if (len > maxLen) maxLen = len;
                                     });
-                                    return { wch: maxLen + 4 };
+                                    col.width = maxLen + 4;
                                  });
-                                 ws['!cols'] = colWidths;
 
                                  // Apply Styling
-                                 const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-                                 for (let R = range.s.r; R <= range.e.r; ++R) {
-                                    for (let C = range.s.c; C <= range.e.c; ++C) {
-                                       const addr = XLSX.utils.encode_cell({ r: R, c: C });
-                                       if (!ws[addr]) continue;
+                                 sheet.eachRow((row, rowNumber) => {
+                                    row.eachCell((cell, colNumber) => {
+                                       cell.font = { name: "Calibri", size: 11 };
+                                       cell.alignment = { vertical: "middle", horizontal: "left" };
 
-                                       ws[addr].s = {
-                                          font: { name: "Calibri", sz: 11 },
-                                          alignment: { vertical: "center", horizontal: "left" }
-                                       };
+                                       const R = rowNumber - 1;
+                                       const C = colNumber - 1;
 
                                        // Branding Header Styling
                                        if (R >= 0 && R <= 4) {
-                                          ws[addr].s.alignment.horizontal = "center";
-                                          ws[addr].s.font.bold = true;
-                                          if (R === 0) ws[addr].s.font.sz = 16;
-                                          if (R === 1) ws[addr].s.font.sz = 14;
-                                          continue;
+                                          cell.alignment = { horizontal: "center" };
+                                          cell.font = { bold: true };
+                                          if (R === 0) cell.font = { size: 16, bold: true };
+                                          if (R === 1) cell.font = { size: 14, bold: true };
                                        }
 
                                        // Table Headers (Row 6)
                                        if (R === 6) {
-                                          ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
-                                          ws[addr].s.font.bold = true;
-                                          ws[addr].s.border = {
-                                             bottom: { style: "thin", color: { rgb: "000000" } },
-                                             top: { style: "thin", color: { rgb: "000000" } }
+                                          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+                                          cell.font = { bold: true };
+                                          cell.border = {
+                                             bottom: { style: "thin", color: { argb: "FF000000" } },
+                                             top: { style: "thin", color: { argb: "FF000000" } }
                                           };
                                        }
 
                                        // Marks Columns (Index 4 onwards)
                                        if (C >= 4 && R > 6) {
-                                          ws[addr].s.alignment.horizontal = "right";
-                                          if (ws[addr].v === 'A') {
-                                             ws[addr].s.font.color = { rgb: "FF0000" };
-                                             ws[addr].s.font.bold = true;
+                                          cell.alignment = { horizontal: "right" };
+                                          if (cell.value === 'A') {
+                                             cell.font = { color: { argb: "FFFF0000" }, bold: true };
                                           }
                                        }
-                                    }
-                                 }
+                                    });
+                                 });
 
                                  setProgress(90);
                                  await new Promise(r => setTimeout(r, 50));
@@ -706,12 +687,8 @@ const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, branchN
                                  setStatus('Starting download...');
                                  await new Promise(r => setTimeout(r, 500));
 
-                                  // Fix: Use XLSX.write and Blob to avoid 'fs' warning
-                                 const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
-                                 const buf = new ArrayBuffer(wbout.length);
-                                 const view = new Uint8Array(buf);
-                                 for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
-                                 const blob = new Blob([buf], { type: 'application/octet-stream' });
+                                 const buffer = await workbook.xlsx.writeBuffer();
+                                 const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
                                  const url = URL.createObjectURL(blob);
                                  const link = document.createElement("a");
                                  link.href = url;
@@ -2395,71 +2372,64 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       const tableData = data.map(row => Object.values(row));
       const finalAOA = [...headerAOA, tableHeaders, ...tableData];
 
-      const ws = XLSX.utils.aoa_to_sheet(finalAOA);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "MST Marks");
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('MST Marks');
+
+      sheet.addRows(finalAOA);
 
       // Merges for Header
-      ws['!merges'] = [
-         { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
-         { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
-         { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
-         { s: { r: 3, c: 0 }, e: { r: 3, c: tableHeaders.length - 1 } },
-         { s: { r: 4, c: 0 }, e: { r: 4, c: tableHeaders.length - 1 } },
-      ];
+      sheet.mergeCells(1, 1, 1, tableHeaders.length);
+      sheet.mergeCells(2, 1, 2, tableHeaders.length);
+      sheet.mergeCells(3, 1, 3, tableHeaders.length);
+      sheet.mergeCells(4, 1, 4, tableHeaders.length);
+      sheet.mergeCells(5, 1, 5, tableHeaders.length);
 
       // Auto-size columns
-      const colWidths = tableHeaders.map((_, colIndex) => {
-         let maxLen = tableHeaders[colIndex].length;
+      sheet.columns.forEach((col, i) => {
+         let maxLen = tableHeaders[i]?.length || 10;
          tableData.forEach(row => {
-            const len = String(row[colIndex] || '').length;
+            const len = String(row[i] || '').length;
             if (len > maxLen) maxLen = len;
          });
-         return { wch: maxLen + 4 };
+         col.width = maxLen + 4;
       });
-      ws['!cols'] = colWidths;
 
       // Apply Styling
-      const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-      for (let R = range.s.r; R <= range.e.r; ++R) {
-         for (let C = range.s.c; C <= range.e.c; ++C) {
-            const addr = XLSX.utils.encode_cell({ r: R, c: C });
-            if (!ws[addr]) continue;
+      sheet.eachRow((row, rowNumber) => {
+         row.eachCell((cell, colNumber) => {
+            cell.font = { name: "Calibri", size: 11 };
+            cell.alignment = { vertical: "middle", horizontal: "left" };
 
-            ws[addr].s = {
-               font: { name: "Calibri", sz: 11 },
-               alignment: { vertical: "center", horizontal: "left" }
-            };
+            const R = rowNumber - 1;
+            const C = colNumber - 1;
 
             // Branding Header Styling
             if (R >= 0 && R <= 4) {
-               ws[addr].s.alignment.horizontal = "center";
-               ws[addr].s.font.bold = true;
-               if (R === 0) ws[addr].s.font.sz = 16;
-               if (R === 1) ws[addr].s.font.sz = 14;
-               continue;
+               cell.alignment = { horizontal: "center" };
+               cell.font = { bold: true };
+               if (R === 0) cell.font = { size: 16, bold: true };
+               if (R === 1) cell.font = { size: 14, bold: true };
             }
 
             // Table Headers (Row 6)
             if (R === 6) {
-               ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
-               ws[addr].s.font.bold = true;
-               ws[addr].s.border = {
-                  bottom: { style: "thin", color: { rgb: "000000" } },
-                  top: { style: "thin", color: { rgb: "000000" } }
+               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+               cell.font = { bold: true };
+               cell.border = {
+                  bottom: { style: "thin", color: { argb: "FF000000" } },
+                  top: { style: "thin", color: { argb: "FF000000" } }
                };
             }
 
             // Marks Column (Index 7: Marks Obtained)
             if (C === 7 && R > 6) {
-               ws[addr].s.alignment.horizontal = "right";
-               if (ws[addr].v === 'A') {
-                  ws[addr].s.font.color = { rgb: "FF0000" };
-                  ws[addr].s.font.bold = true;
+               cell.alignment = { horizontal: "right" };
+               if (cell.value === 'A') {
+                  cell.font = { color: { argb: "FFFF0000" }, bold: true };
                }
             }
-         }
-      }
+         });
+      });
 
       setExportProgress(80);
       setExportStatus('Finalizing branding...');
@@ -2469,12 +2439,8 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
       setExportStatus('Download starting...');
       await new Promise(r => setTimeout(r, 300));
 
-      // Fix: Use XLSX.write and Blob to avoid 'fs' warning
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
-      const buf = new ArrayBuffer(wbout.length);
-      const view = new Uint8Array(buf);
-      for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
-      const blob = new Blob([buf], { type: 'application/octet-stream' });
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -2827,99 +2793,90 @@ export const FacultyDashboard: React.FC<FacultyProps> = ({ user, forceCoordinato
          setExportProgress(85);
          setExportStatus('Applying institutional branding...');
          await new Promise(r => setTimeout(r, 500));
-         const wb = XLSX.utils.book_new();
-         const ws = XLSX.utils.aoa_to_sheet(excelRows);
+         const workbook = new ExcelJS.Workbook();
+         const sheet = workbook.addWorksheet('Attendance Report');
+
+         sheet.addRows(excelRows);
 
          // Merges
          const mergeEndCol = dataHeaders.length - 1;
-         ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: mergeEndCol } },
-            { s: { r: 1, c: 0 }, e: { r: 1, c: mergeEndCol } },
-            { s: { r: 2, c: 0 }, e: { r: 2, c: mergeEndCol } },
-            { s: { r: 3, c: 0 }, e: { r: 3, c: mergeEndCol } }
-         ];
+         sheet.mergeCells(1, 1, 1, mergeEndCol + 1);
+         sheet.mergeCells(2, 1, 2, mergeEndCol + 1);
+         sheet.mergeCells(3, 1, 3, mergeEndCol + 1);
+         sheet.mergeCells(4, 1, 4, mergeEndCol + 1);
 
          // Auto Width
-         const colWidths = dataHeaders.map((_, colIndex) => {
+         sheet.columns.forEach((col, i) => {
             let maxLen = 10;
             excelRows.forEach((row, ri) => {
                if (ri < 10) return;
-               if (row[colIndex]) {
-                  const len = row[colIndex].toString().length;
+               if (row[i]) {
+                  const len = row[i].toString().length;
                   if (len > maxLen) maxLen = len;
                }
             });
-            return { wch: maxLen + 4 };
+            col.width = maxLen + 4;
          });
-         ws['!cols'] = colWidths;
 
          // --- 4. Apply Colors & Styles ---
-         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-         for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-               const addr = XLSX.utils.encode_cell({ r: R, c: C });
-               if (!ws[addr]) continue;
-
-               ws[addr].s = {
-                  font: { name: "Calibri", sz: 11 },
-                  alignment: { vertical: "center", horizontal: "left", wrapText: true },
-                  border: {
-                     top: { style: "thin", color: { rgb: "E2E8F0" } },
-                     bottom: { style: "thin", color: { rgb: "E2E8F0" } },
-                     left: { style: "thin", color: { rgb: "E2E8F0" } },
-                     right: { style: "thin", color: { rgb: "E2E8F0" } }
-                  }
+         sheet.eachRow((row, rowNumber) => {
+            row.eachCell((cell, colNumber) => {
+               cell.font = { name: "Calibri", size: 11 };
+               cell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+               cell.border = {
+                  top: { style: "thin", color: { argb: "FFE2E8F0" } },
+                  bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+                  left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                  right: { style: "thin", color: { argb: "FFE2E8F0" } }
                };
 
+               const R = rowNumber - 1;
+               const C = colNumber - 1;
                const rowVal0 = excelRows[R]?.[0]?.toString() || '';
+
                if (R >= 0 && R <= 3) {
-                  ws[addr].s.fill = { fgColor: { rgb: "002D62" } };
-                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 14 };
-                  ws[addr].s.alignment.horizontal = "center";
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002D62' } };
+                  cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 14 };
+                  cell.alignment = { horizontal: "center" };
                }
                if (R >= 8 && R <= 11 && C === 0) {
-                  ws[addr].s.font.bold = true;
-                  ws[addr].s.fill = { fgColor: { rgb: "F8FAFC" } };
+                  cell.font = { bold: true };
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
                }
                if (rowVal0.startsWith('>>> BATCH')) {
-                  ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
-                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
-                  ws[addr].s.alignment.horizontal = "center";
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+                  cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 };
+                  cell.alignment = { horizontal: "center" };
                }
                if (rowVal0 === 'Sr No') {
-                  ws[addr].s.fill = { fgColor: { rgb: "1E293B" } };
-                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
-                  ws[addr].s.alignment.horizontal = "center";
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+                  cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                  cell.alignment = { horizontal: "center" };
                }
                if (rowVal0 && rowVal0 !== 'Sr No' && !rowVal0.startsWith('>>> BATCH') && R > 10 && C === 5) {
-                  const valText = ws[addr].v?.toString() || '';
+                  const valText = cell.value?.toString() || '';
                   const val = parseInt(valText);
                   if (!isNaN(val)) {
-                     if (val >= 90) ws[addr].s.font.color = { rgb: "059669" };
-                     else if (val < 75) ws[addr].s.font.color = { rgb: "DC2626" };
-                     ws[addr].s.font.bold = true;
+                     if (val >= 90) cell.font = { color: { argb: 'FF059669' }, bold: true };
+                     else if (val < 75) cell.font = { color: { argb: 'FFDC2626' }, bold: true };
+                     else cell.font = { bold: true };
                   }
                }
-            }
-         }
+            });
+         });
 
          excelRows.forEach((row, R) => {
             if (row[0]?.toString().startsWith('>>> BATCH')) {
-               ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: mergeEndCol } });
+               sheet.mergeCells(R + 1, 1, R + 1, mergeEndCol + 1);
             }
          });
 
-         XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
          setExportProgress(100);
          setExportStatus('Starting download...');
          await new Promise(r => setTimeout(r, 500));
          
-         // Fix: Use XLSX.write and Blob to avoid 'fs' warning in Vite/Browser
-         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'binary' });
-         const buf = new ArrayBuffer(wbout.length);
-         const view = new Uint8Array(buf);
-         for (let i = 0; i < wbout.length; i++) view[i] = wbout.charCodeAt(i) & 0xFF;
-         const blob = new Blob([buf], { type: 'application/octet-stream' });
+         const buffer = await workbook.xlsx.writeBuffer();
+         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
          const url = URL.createObjectURL(blob);
          const link = document.createElement("a");
          link.href = url;

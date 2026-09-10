@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 self.onmessage = async (e: MessageEvent) => {
   const { type, payload } = e.data;
@@ -20,33 +20,30 @@ self.onmessage = async (e: MessageEvent) => {
        const tableData = data.map((row: any) => Object.values(row));
        const finalAOA = [...headerAOA, tableHeaders, ...tableData];
 
-       const ws = XLSX.utils.aoa_to_sheet(finalAOA);
-       const wb = XLSX.utils.book_new();
-       XLSX.utils.book_append_sheet(wb, ws, "MST Marks Summary");
+       const workbook = new ExcelJS.Workbook();
+       const sheet = workbook.addWorksheet('MST Marks Summary');
 
-       // Apply cell styles if needed (Note: xlsx-js-style might be needed for actual colors in worker)
+       sheet.addRows(finalAOA);
+
        // Basic column widths
-       const colWidths = tableHeaders.map((_: any, colIndex: number) => {
-          let maxLen = tableHeaders[colIndex].length;
+       sheet.columns.forEach((col, i) => {
+          let maxLen = tableHeaders[i]?.length || 10;
           tableData.forEach((row: any) => {
-             const len = String(row[colIndex] || '').length;
+             const len = String(row[i] || '').length;
              if (len > maxLen) maxLen = len;
           });
-          return { wch: maxLen + 4 };
+          col.width = maxLen + 4;
        });
-       ws['!cols'] = colWidths;
 
        // Merges for header
-       ws['!merges'] = [
-          { s: { r: 0, c: 0 }, e: { r: 0, c: tableHeaders.length - 1 } },
-          { s: { r: 1, c: 0 }, e: { r: 1, c: tableHeaders.length - 1 } },
-          { s: { r: 2, c: 0 }, e: { r: 2, c: tableHeaders.length - 1 } },
-          { s: { r: 3, c: 0 }, e: { r: 3, c: tableHeaders.length - 1 } },
-          { s: { r: 4, c: 0 }, e: { r: 4, c: tableHeaders.length - 1 } },
-       ];
+       sheet.mergeCells(1, 1, 1, tableHeaders.length);
+       sheet.mergeCells(2, 1, 2, tableHeaders.length);
+       sheet.mergeCells(3, 1, 3, tableHeaders.length);
+       sheet.mergeCells(4, 1, 4, tableHeaders.length);
+       sheet.mergeCells(5, 1, 5, tableHeaders.length);
 
-       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-       (self as any).postMessage({ type: 'SUCCESS', payload: wbout }, [wbout]);
+       const buffer = await workbook.xlsx.writeBuffer();
+       (self as any).postMessage({ type: 'SUCCESS', payload: buffer }, [buffer]);
     } catch (error: any) {
        self.postMessage({ type: 'ERROR', payload: error.message });
     }

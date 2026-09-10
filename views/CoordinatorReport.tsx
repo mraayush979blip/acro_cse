@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import XLSX from 'xlsx-js-style';
+import ExcelJS from 'exceljs';
 import { db } from '../services/db';
 import { User, AttendanceRecord, MidSemType } from '../types';
 import { Input, Select, ExportProgressModal } from '../components/UI';
@@ -253,16 +253,12 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
          setStatus('Applying institutional branding...');
          await new Promise(r => setTimeout(r, 50));
 
-         const wb = XLSX.utils.book_new();
-         const ws = XLSX.utils.aoa_to_sheet(csvRows);
+         const workbook = new ExcelJS.Workbook();
+         const sheet = workbook.addWorksheet('Attendance Report');
 
-         ws['!merges'] = [
-            { s: { r: 0, c: 0 }, e: { r: 0, c: mainHeader.length - 1 } },
-            { s: { r: 1, c: 0 }, e: { r: 1, c: mainHeader.length - 1 } },
-            { s: { r: 2, c: 0 }, e: { r: 2, c: mainHeader.length - 1 } }
-         ];
+         sheet.addRows(csvRows);
 
-         const colWidths = mainHeader.map((_, colIndex) => {
+         sheet.columns.forEach((col, colIndex) => {
             let maxLen = 10;
             csvRows.forEach((row, rowIndex) => {
                if (rowIndex < 7) return;
@@ -272,72 +268,71 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
                   if (len > maxLen) maxLen = len;
                }
             });
-            return { wch: maxLen + 4 };
+            col.width = maxLen + 4;
          });
-         ws['!cols'] = colWidths;
-         ws['!views'] = [{ state: 'frozen', xSplit: 4, ySplit: 14 }];
 
-         const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-         for (let R = range.s.r; R <= range.e.r; ++R) {
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-               const addr = XLSX.utils.encode_cell({ r: R, c: C });
-               if (!ws[addr]) continue;
+         sheet.views = [{ state: 'frozen', xSplit: 4, ySplit: 14 }];
 
-               ws[addr].s = {
-                  font: { name: "Calibri", sz: 10 },
-                  alignment: { vertical: "center", horizontal: "left", wrapText: true },
-                  border: {
-                     top: { style: "thin", color: { rgb: "CBD5E1" } },
-                     bottom: { style: "thin", color: { rgb: "CBD5E1" } },
-                     left: { style: "thin", color: { rgb: "CBD5E1" } },
-                     right: { style: "thin", color: { rgb: "CBD5E1" } }
-                  }
+         sheet.eachRow((row, rowNumber) => {
+            row.eachCell((cell, colNumber) => {
+               cell.font = { name: "Calibri", size: 10 };
+               cell.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+               cell.border = {
+                  top: { style: "thin", color: { argb: "FFCBD5E1" } },
+                  bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+                  left: { style: "thin", color: { argb: "FFCBD5E1" } },
+                  right: { style: "thin", color: { argb: "FFCBD5E1" } }
                };
 
+               const R = rowNumber - 1;
+               const C = colNumber - 1;
+
                if (R >= 0 && R <= 2) {
-                  ws[addr].s.fill = { fgColor: { rgb: "0F172A" } };
-                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 12 };
-                  ws[addr].s.alignment.horizontal = "center";
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+                  cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 12 };
+                  cell.alignment = { horizontal: "center" };
                }
 
                const rowVal0 = csvRows[R]?.[0]?.toString() || '';
                const rowVal1 = csvRows[R]?.[1]?.toString() || '';
 
                if (rowVal0.startsWith('>>> BATCH')) {
-                  ws[addr].s.fill = { fgColor: { rgb: "4F46E5" } };
-                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true, sz: 11 };
-                  ws[addr].s.alignment.horizontal = "center";
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+                  cell.font = { color: { argb: 'FFFFFFFF' }, bold: true, size: 11 };
+                  cell.alignment = { horizontal: "center" };
                }
 
                if (rowVal0 === 'Serial No') {
-                  ws[addr].s.fill = { fgColor: { rgb: "334155" } };
-                  ws[addr].s.font = { color: { rgb: "FFFFFF" }, bold: true };
-                  ws[addr].s.alignment.horizontal = "center";
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
+                  cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+                  cell.alignment = { horizontal: "center" };
                }
 
                if (rowVal1 === 'Total Lectures Held') {
-                  ws[addr].s.fill = { fgColor: { rgb: "F1F5F9" } };
-                  ws[addr].s.font = ws[addr].s.font || {};
-                  ws[addr].s.font.bold = true;
+                  cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+                  cell.font = { bold: true };
                }
 
                if (C >= 3 && R > 7) {
-                  ws[addr].s.alignment.horizontal = "right";
-                  const val = ws[addr].v?.toString() || '';
+                  cell.alignment = { horizontal: "right" };
+                  const val = cell.value?.toString() || '';
                   if (val.includes('%')) {
                      const num = parseInt(val);
                      if (num < 75) {
-                        ws[addr].s.font = { color: { rgb: "FF0000" }, bold: true };
+                        cell.font = { color: { argb: 'FFFF0000' }, bold: true };
                      }
                   }
                }
-            }
-         }
+            });
+         });
 
-         if (!ws['!merges']) ws['!merges'] = [];
+         sheet.mergeCells(1, 1, 1, mainHeader.length);
+         sheet.mergeCells(2, 1, 2, mainHeader.length);
+         sheet.mergeCells(3, 1, 3, mainHeader.length);
+
          csvRows.forEach((row, R) => {
             if (row[0]?.toString().startsWith('>>> BATCH')) {
-               ws['!merges']!.push({ s: { r: R, c: 0 }, e: { r: R, c: mainHeader.length - 1 } });
+               sheet.mergeCells(R + 1, 1, R + 1, mainHeader.length);
             }
          });
 
@@ -345,8 +340,14 @@ export const CoordinatorReport: React.FC<CoordinatorReportProps> = ({ branchId, 
          setStatus('Finalizing file...');
          await new Promise(r => setTimeout(r, 400));
 
-         XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
-         XLSX.writeFile(wb, `${branchName}_Summary_Report.xlsx`);
+         const buffer = await workbook.xlsx.writeBuffer();
+         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+         const url = window.URL.createObjectURL(blob);
+         const a = document.createElement('a');
+         a.href = url;
+         a.download = `${branchName}_Summary_Report.xlsx`;
+         a.click();
+         window.URL.revokeObjectURL(url);
 
          setProgress(100);
          setStatus('Complete!');
